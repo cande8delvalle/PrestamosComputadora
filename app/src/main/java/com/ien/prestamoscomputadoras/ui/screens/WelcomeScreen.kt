@@ -59,7 +59,10 @@ fun WelcomeScreen(
             .padding(horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.weight(1f))
+        // El bloque logo + nombre queda entre dos Spacer de igual peso, así se centra verticalmente
+        // en el espacio sobre "Gestioná tus préstamos". Los pesos suman 1f, como el Spacer único
+        // que había antes, para que el título, los botones y la versión no se muevan.
+        Spacer(Modifier.weight(0.5f))
 
         Image(
             painter = painterResource(id = R.drawable.logo_ien),
@@ -86,6 +89,7 @@ fun WelcomeScreen(
             textAlign = TextAlign.Center,
         )
 
+        Spacer(Modifier.weight(0.5f))
         Spacer(Modifier.height(10.dp))
 
         Text(

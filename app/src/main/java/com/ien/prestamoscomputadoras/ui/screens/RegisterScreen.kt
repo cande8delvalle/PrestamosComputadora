@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Email
@@ -79,7 +80,7 @@ private val SuccessGreen = Color(0xFF33A852)
 @Composable
 fun RegisterScreen(
     modifier: Modifier = Modifier,
-    viewModel: RegisterViewModel = viewModel(),
+    viewModel: RegisterViewModel = viewModel(factory = RegisterViewModel.Factory),
     onIniciarSesionClick: () -> Unit = {},
     /** Se invoca al presionar "Aceptar" en el modal de "Cuenta Creada" (redirige a Login). */
     onCuentaCreada: () -> Unit = {},
@@ -88,6 +89,7 @@ fun RegisterScreen(
         uiState = viewModel.uiState,
         onNombreChange = viewModel::onNombreChange,
         onApellidoChange = viewModel::onApellidoChange,
+        onNombreUsuarioChange = viewModel::onNombreUsuarioChange,
         onDniChange = viewModel::onDniChange,
         onCorreoChange = viewModel::onCorreoChange,
         onContrasenaChange = viewModel::onContrasenaChange,
@@ -110,6 +112,7 @@ private fun RegisterContent(
     uiState: RegisterUiState,
     onNombreChange: (String) -> Unit,
     onApellidoChange: (String) -> Unit,
+    onNombreUsuarioChange: (String) -> Unit,
     onDniChange: (String) -> Unit,
     onCorreoChange: (String) -> Unit,
     onContrasenaChange: (String) -> Unit,
@@ -174,6 +177,16 @@ private fun RegisterContent(
                     placeholder = "Pérez",
                     error = uiState.errores.apellido,
                     leadingIcon = Icons.Filled.Person,
+                    keyboardType = KeyboardType.Text,
+                )
+
+                RegisterField(
+                    label = "Nombre de usuario",
+                    value = uiState.nombreUsuario,
+                    onValueChange = onNombreUsuarioChange,
+                    placeholder = "ej: Jperez",
+                    error = uiState.errores.nombreUsuario,
+                    leadingIcon = Icons.Filled.AccountCircle,
                     keyboardType = KeyboardType.Text,
                 )
 
@@ -474,6 +487,7 @@ private fun RegisterScreenPreview() {
             uiState = RegisterUiState(),
             onNombreChange = {},
             onApellidoChange = {},
+            onNombreUsuarioChange = {},
             onDniChange = {},
             onCorreoChange = {},
             onContrasenaChange = {},
@@ -507,6 +521,7 @@ private fun RegisterScreenErroresPreview() {
             ),
             onNombreChange = {},
             onApellidoChange = {},
+            onNombreUsuarioChange = {},
             onDniChange = {},
             onCorreoChange = {},
             onContrasenaChange = {},
@@ -528,6 +543,7 @@ private fun RegisterScreenModalPreview() {
             uiState = RegisterUiState(mostrarModalExito = true),
             onNombreChange = {},
             onApellidoChange = {},
+            onNombreUsuarioChange = {},
             onDniChange = {},
             onCorreoChange = {},
             onContrasenaChange = {},

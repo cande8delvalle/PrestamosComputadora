@@ -6,8 +6,11 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * Computadora del instituto. La carga inicial se hace externamente, directo en la base:
- * por eso el id NO es autogenerado y la app no inserta computadoras.
+ * Computadora del instituto. Se da de alta desde "Registrar Computadora": el id NO es
+ * autogenerado, es el número del código (PC-11 -> 11).
+ *
+ * La disponibilidad no se guarda: se calcula (disponible = sin préstamo ACTIVO), ver
+ * [com.ien.prestamoscomputadoras.data.dao.ComputadoraDao.listarDisponibles].
  */
 @Entity(
     tableName = "computadora",
@@ -19,5 +22,6 @@ data class Computadora(
     @ColumnInfo(name = "id_computadora")
     val idComputadora: Long,
     val codigo: String,
-    val disponible: Boolean,
+    /** Opcional, ej: "ProBook 440 G8". */
+    val modelo: String? = null,
 )

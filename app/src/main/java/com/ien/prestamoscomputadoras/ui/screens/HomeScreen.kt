@@ -12,10 +12,11 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Laptop
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.QrCodeScanner
@@ -34,16 +35,23 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ien.prestamoscomputadoras.data.Permiso
 import com.ien.prestamoscomputadoras.ui.components.QuickActionCard
 import com.ien.prestamoscomputadoras.ui.components.RecentActivityItem
+import com.ien.prestamoscomputadoras.ui.components.StatCard
 import com.ien.prestamoscomputadoras.ui.theme.IenCream
 import com.ien.prestamoscomputadoras.ui.theme.IenGreyText
 import com.ien.prestamoscomputadoras.ui.theme.IenPurple
 import com.ien.prestamoscomputadoras.ui.theme.IenPurpleDark
-import com.ien.prestamoscomputadoras.ui.theme.IenYellow
 import com.ien.prestamoscomputadoras.ui.theme.PrestamosComputadorasTheme
 import com.ien.prestamoscomputadoras.viewmodel.HomeUiState
 import com.ien.prestamoscomputadoras.viewmodel.HomeViewModel
+
+/** Acentos de las tarjetas de estadísticas: fondo pálido del ícono + tono más oscuro del ícono. */
+private val StatAmarilloPalido = Color(0xFFFFF3CC)
+private val StatDorado = Color(0xFFB8860B)
+private val StatVerdePalido = Color(0xFFE3F4E8)
+private val StatVerde = Color(0xFF2E7D32)
 
 /**
  * Pantalla de inicio, a la que se llega después de un login exitoso.
@@ -54,21 +62,25 @@ import com.ien.prestamoscomputadoras.viewmodel.HomeViewModel
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
-    viewModel: HomeViewModel = viewModel(),
+    viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
     // TODO: navegar a las pantallas correspondientes cuando existan.
     onRegistrarAlumnoClick: () -> Unit = {},
+    onRegistrarComputadoraClick: () -> Unit = {},
     onNuevoPrestamoClick: () -> Unit = {},
     onRegistrarDevolucionClick: () -> Unit = {},
     onHistorialClick: () -> Unit = {},
+    onRolesPermisosClick: () -> Unit = {},
     // TODO: cerrar sesión y volver a Login/Welcome.
     onLogoutClick: () -> Unit = {},
 ) {
     HomeContent(
         uiState = viewModel.uiState,
         onRegistrarAlumnoClick = onRegistrarAlumnoClick,
+        onRegistrarComputadoraClick = onRegistrarComputadoraClick,
         onNuevoPrestamoClick = onNuevoPrestamoClick,
         onRegistrarDevolucionClick = onRegistrarDevolucionClick,
         onHistorialClick = onHistorialClick,
+        onRolesPermisosClick = onRolesPermisosClick,
         onLogoutClick = onLogoutClick,
         modifier = modifier,
     )
@@ -78,12 +90,16 @@ fun HomeScreen(
 private fun HomeContent(
     uiState: HomeUiState,
     onRegistrarAlumnoClick: () -> Unit,
+    onRegistrarComputadoraClick: () -> Unit,
     onNuevoPrestamoClick: () -> Unit,
     onRegistrarDevolucionClick: () -> Unit,
     onHistorialClick: () -> Unit,
+    onRolesPermisosClick: () -> Unit,
     onLogoutClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val acceso = uiState.acceso
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -104,11 +120,17 @@ private fun HomeContent(
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 StatCard(
+                    icono = Icons.Filled.Laptop,
+                    colorFondoIcono = StatAmarilloPalido,
+                    colorIcono = StatDorado,
                     numero = uiState.cantidadPrestados,
                     etiqueta = "Prestados",
                     modifier = Modifier.weight(1f),
                 )
                 StatCard(
+                    icono = Icons.Filled.Check,
+                    colorFondoIcono = StatVerdePalido,
+                    colorIcono = StatVerde,
                     numero = uiState.cantidadDevueltosHoy,
                     etiqueta = "Devueltos hoy",
                     modifier = Modifier.weight(1f),
@@ -117,39 +139,79 @@ private fun HomeContent(
 
             SectionTitle("ACCIONES RÁPIDAS")
 
+            // Cada acción se muestra solo si el rol del usuario tiene ese permiso.
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (acceso.puede(Permiso.REGISTRAR_ALUMNO)) {
+                    QuickActionCard(
+                        icon = Icons.Filled.PersonAdd,
+                        titulo = "Registrar alumno",
+                        subtitulo = "Agregar nuevo estudiante al sistema",
+                        onClick = onRegistrarAlumnoClick,
+                    )
+                }
+                if (acceso.puede(Permiso.REGISTRAR_COMPUTADORA)) {
+                    QuickActionCard(
+                        icon = Icons.Filled.Laptop,
+                        titulo = "Registrar Computadora",
+                        subtitulo = "Registra una computadora nueva",
+                        onClick = onRegistrarComputadoraClick,
+                    )
+                }
+                if (acceso.puede(Permiso.REGISTRAR_PRESTAMO)) {
+                    QuickActionCard(
+                        icon = Icons.Filled.Laptop,
+                        titulo = "Nuevo préstamo",
+                        subtitulo = "Registrar entrega de computadora",
+                        onClick = onNuevoPrestamoClick,
+                    )
+                }
+                if (acceso.puede(Permiso.REGISTRAR_DEVOLUCION)) {
+                    QuickActionCard(
+                        icon = Icons.Filled.QrCodeScanner,
+                        titulo = "Registrar devolución",
+                        subtitulo = "Controlar el equipo devuelto",
+                        onClick = onRegistrarDevolucionClick,
+                    )
+                }
+                if (acceso.puede(Permiso.VER_HISTORIAL)) {
+                    QuickActionCard(
+                        icon = Icons.Filled.Schedule,
+                        titulo = "Historial semanal",
+                        subtitulo = "Ver préstamos y devoluciones",
+                        onClick = onHistorialClick,
+                    )
+                }
+            }
+
+            // Exclusiva del Admin: Gestión de Permisos nunca se otorga a otro rol.
+            if (acceso.esAdmin) {
+                SectionTitle("ADMINISTRACIÓN")
                 QuickActionCard(
-                    icon = Icons.Filled.PersonAdd,
-                    titulo = "Registrar alumno",
-                    subtitulo = "Agregar nuevo estudiante al sistema",
-                    onClick = onRegistrarAlumnoClick,
-                )
-                QuickActionCard(
-                    icon = Icons.Filled.Laptop,
-                    titulo = "Nuevo préstamo",
-                    subtitulo = "Registrar entrega de computadora",
-                    onClick = onNuevoPrestamoClick,
-                )
-                QuickActionCard(
-                    icon = Icons.Filled.QrCodeScanner,
-                    titulo = "Registrar devolución",
-                    subtitulo = "Controlar el equipo devuelto",
-                    onClick = onRegistrarDevolucionClick,
-                )
-                QuickActionCard(
-                    icon = Icons.Filled.Schedule,
-                    titulo = "Historial semanal",
-                    subtitulo = "Ver préstamos y devoluciones",
-                    onClick = onHistorialClick,
+                    icon = Icons.Filled.AdminPanelSettings,
+                    titulo = "Roles y Permisos",
+                    subtitulo = "Definir qué puede hacer cada rol",
+                    onClick = onRolesPermisosClick,
                 )
             }
 
             SectionTitle("ACTIVIDAD RECIENTE")
 
             // Column + forEach (no LazyColumn): la lista es corta y vive dentro de un verticalScroll.
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                uiState.actividadReciente.forEach { actividad ->
-                    RecentActivityItem(actividad)
+            if (uiState.actividadReciente.isEmpty()) {
+                Text(
+                    text = "Todavía no hay movimientos hoy.",
+                    color = IenGreyText,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    uiState.actividadReciente.forEach { actividad ->
+                        RecentActivityItem(actividad)
+                    }
                 }
             }
 
@@ -199,28 +261,6 @@ private fun HomeHeader(onLogoutClick: () -> Unit) {
     }
 }
 
-/** Tarjeta amarilla con un número grande y una etiqueta debajo. */
-@Composable
-private fun StatCard(numero: Int, etiqueta: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .background(IenYellow, RoundedCornerShape(16.dp))
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-    ) {
-        Text(
-            text = numero.toString(),
-            color = IenPurple,
-            fontSize = 34.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            text = etiqueta,
-            color = IenPurple,
-            fontSize = 13.sp,
-        )
-    }
-}
-
 @Composable
 private fun SectionTitle(texto: String) {
     Text(
@@ -240,9 +280,11 @@ private fun HomeScreenPreview() {
         HomeContent(
             uiState = HomeViewModel.datosDePrueba(),
             onRegistrarAlumnoClick = {},
+            onRegistrarComputadoraClick = {},
             onNuevoPrestamoClick = {},
             onRegistrarDevolucionClick = {},
             onHistorialClick = {},
+            onRolesPermisosClick = {},
             onLogoutClick = {},
         )
     }

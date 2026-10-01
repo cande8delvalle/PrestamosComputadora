@@ -58,6 +58,12 @@ data class Prestamo(
     val fechaDevolucion: Long? = null,
     /** [ESTADO_ACTIVO] o [ESTADO_DEVUELTO]. */
     val estado: String = ESTADO_ACTIVO,
+    /**
+     * Observaciones opcionales sobre el estado del equipo al entregarlo. La revisión de la
+     * devolución va aparte, en [EstadoComputadora].
+     */
+    @ColumnInfo(name = "observaciones_iniciales")
+    val observacionesIniciales: String? = null,
 ) {
     companion object {
         const val ESTADO_ACTIVO = "ACTIVO"

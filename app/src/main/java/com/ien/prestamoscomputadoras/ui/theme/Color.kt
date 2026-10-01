@@ -17,3 +17,5 @@ val IenPurpleDark = Color(0xFF3D1A5B)   // violeta oscuro para el degradado del 
 val IenCream = Color(0xFFF5F0E8)        // fondo crema claro del cuerpo
 val IenYellow = Color(0xFFF5B700)       // amarillo del botón principal
 val IenGreyText = Color(0xFF6B6B6B)     // gris para subtítulos y textos secundarios
+val IenLavender = Color(0xFFEDE6F5)     // lavanda claro de las tarjetas de formulario
+val IenLavenderDark = Color(0xFFDDD0EC) // lavanda más oscuro de los inputs sobre esas tarjetas

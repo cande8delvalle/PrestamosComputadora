@@ -61,7 +61,7 @@ import com.ien.prestamoscomputadoras.viewmodel.LoginViewModel
 @Composable
 fun LoginScreen(
     modifier: Modifier = Modifier,
-    viewModel: LoginViewModel = viewModel(),
+    viewModel: LoginViewModel = viewModel(factory = LoginViewModel.Factory),
     onCrearCuentaClick: () -> Unit = {},
     /** Se invoca cuando el login pasa la validación (navega a Home). */
     onLoginExitoso: () -> Unit = {},
