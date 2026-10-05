@@ -9,9 +9,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.ien.prestamoscomputadoras.data.AppDatabase
-import com.ien.prestamoscomputadoras.data.dao.HistorialDao
 import com.ien.prestamoscomputadoras.data.dao.PrestamoHistorial
 import com.ien.prestamoscomputadoras.data.entity.Prestamo
+import com.ien.prestamoscomputadoras.data.repository.HistorialRepository
 import com.ien.prestamoscomputadoras.util.tieneDanioEnDevolucion
 import com.ien.prestamoscomputadoras.util.tieneObservacionAlEntregar
 import java.text.SimpleDateFormat
@@ -63,8 +63,13 @@ data class TarjetaHistorial(
      * chip "Daño en la devolución" (ver [tieneDanioEnDevolucion]).
      */
     val danioDevolucion: RevisionDevolucion?,
-    /** Nombre del administrador que registró el préstamo (no el de la sesión actual). */
-    val gestionadoPor: String,
+    /** Administrador que entregó la computadora (no el de la sesión actual). */
+    val prestadoPor: String,
+    /**
+     * Administrador que recibió la devolución. `null` si el préstamo sigue activo (o si se
+     * devolvió antes de que se guardara este dato).
+     */
+    val devueltoPor: String?,
     /** Epoch ms del préstamo, para aplicar el filtro. */
     val fechaPrestamoMs: Long,
 )
@@ -95,7 +100,7 @@ data class HistorialPrestamosUiState(
  * entre el lunes y hoy), así que cambiar de chip filtra en memoria sin volver a la base.
  */
 class HistorialPrestamosViewModel(
-    private val historialDao: HistorialDao,
+    private val historialRepository: HistorialRepository,
     /** Reloj inyectable para los tests. */
     private val ahora: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
@@ -107,7 +112,7 @@ class HistorialPrestamosViewModel(
         val rango = rangoSemana(ahora())
         uiState = uiState.copy(inicioHoy = rango.inicioHoy)
         viewModelScope.launch {
-            val filas = historialDao.listarEntre(rango.inicioLunes, rango.finHoy)
+            val filas = historialRepository.listarEntre(rango.inicioLunes, rango.finHoy)
             uiState = uiState.copy(cargando = false, tarjetasSemana = filas.map { it.aTarjeta() })
         }
     }
@@ -127,11 +132,11 @@ class HistorialPrestamosViewModel(
     }
 
     companion object {
-        /** Crea el ViewModel con su DAO (Room) a partir del Application. */
+        /** Crea el ViewModel con su repositorio (Room) a partir del Application. */
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = checkNotNull(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
-                HistorialPrestamosViewModel(AppDatabase.getInstance(app).historialDao())
+                HistorialPrestamosViewModel(HistorialRepository(AppDatabase.getInstance(app).historialDao()))
             }
         }
     }
@@ -193,7 +198,10 @@ private fun PrestamoHistorial.aTarjeta(): TarjetaHistorial {
                     observaciones = it.observaciones?.trim()?.ifEmpty { null },
                 )
             },
-        gestionadoPor = "$adminNombre $adminApellido",
+        prestadoPor = "$adminPrestamoNombre $adminPrestamoApellido",
+        devueltoPor = adminDevolucionNombre
+            ?.takeIf { devuelto }
+            ?.let { "$it ${adminDevolucionApellido.orEmpty()}".trim() },
         fechaPrestamoMs = prestamo.fechaPrestamo,
     )
 }

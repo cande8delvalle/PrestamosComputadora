@@ -25,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -34,6 +35,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ien.prestamoscomputadoras.data.Permiso
 import com.ien.prestamoscomputadoras.ui.components.QuickActionCard
@@ -56,8 +58,9 @@ private val StatVerde = Color(0xFF2E7D32)
 /**
  * Pantalla de inicio, a la que se llega después de un login exitoso.
  *
- * Este composable solo conecta el [HomeViewModel] con la UI. Todo el diseño
- * vive en [HomeContent], que es stateless y por eso se puede previsualizar.
+ * Este composable solo conecta el [HomeViewModel] con la UI: observa su StateFlow (solo
+ * mientras la pantalla está visible) y se recompone cada vez que emite. Todo el diseño vive en
+ * [HomeContent], que es stateless y por eso se puede previsualizar.
  */
 @Composable
 fun HomeScreen(
@@ -73,8 +76,9 @@ fun HomeScreen(
     // TODO: cerrar sesión y volver a Login/Welcome.
     onLogoutClick: () -> Unit = {},
 ) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     HomeContent(
-        uiState = viewModel.uiState,
+        uiState = uiState,
         onRegistrarAlumnoClick = onRegistrarAlumnoClick,
         onRegistrarComputadoraClick = onRegistrarComputadoraClick,
         onNuevoPrestamoClick = onNuevoPrestamoClick,
@@ -199,7 +203,7 @@ private fun HomeContent(
             // Column + forEach (no LazyColumn): la lista es corta y vive dentro de un verticalScroll.
             if (uiState.actividadReciente.isEmpty()) {
                 Text(
-                    text = "Todavía no hay movimientos hoy.",
+                    text = "Todavía no hay movimientos.",
                     color = IenGreyText,
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center,

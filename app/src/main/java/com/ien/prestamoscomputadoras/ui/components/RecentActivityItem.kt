@@ -32,14 +32,15 @@ import com.ien.prestamoscomputadoras.ui.theme.IenGreyText
 import com.ien.prestamoscomputadoras.ui.theme.IenPurple
 import com.ien.prestamoscomputadoras.ui.theme.PrestamosComputadorasTheme
 import com.ien.prestamoscomputadoras.viewmodel.ActividadReciente
-import com.ien.prestamoscomputadoras.viewmodel.EstadoPrestamo
+import com.ien.prestamoscomputadoras.viewmodel.TipoMovimiento
 
 /** Verde de la etiqueta "DEVUELTO". Solo se usa acá, por eso no está en Color.kt. */
 private val VerdeDevuelto = Color(0xFF2E7D32)
 
 /**
- * Ítem de la lista "Actividad reciente": ícono de persona, nombre del alumno,
- * código de PC + hora, y una etiqueta (pill) con el estado del préstamo.
+ * Ítem de la lista "Actividad reciente": ícono de persona, nombre del alumno, código de PC +
+ * hora y una etiqueta (pill) con el tipo de movimiento. No muestra quién lo gestionó: eso se ve
+ * solo en el Historial.
  */
 @Composable
 fun RecentActivityItem(
@@ -92,16 +93,16 @@ fun RecentActivityItem(
 
             Spacer(Modifier.width(8.dp))
 
-            EstadoPill(actividad.estado)
+            TipoPill(actividad.tipo)
         }
     }
 }
 
 @Composable
-private fun EstadoPill(estado: EstadoPrestamo) {
-    val (texto, fondo) = when (estado) {
-        EstadoPrestamo.ACTIVO -> "ACTIVO" to IenPurple
-        EstadoPrestamo.DEVUELTO -> "DEVUELTO" to VerdeDevuelto
+private fun TipoPill(tipo: TipoMovimiento) {
+    val (texto, fondo) = when (tipo) {
+        TipoMovimiento.PRESTAMO -> "PRESTADO" to IenPurple
+        TipoMovimiento.DEVOLUCION -> "DEVUELTO" to VerdeDevuelto
     }
     Text(
         text = texto,
@@ -120,11 +121,11 @@ private fun RecentActivityItemPreview() {
     PrestamosComputadorasTheme {
         Column(Modifier.padding(16.dp)) {
             RecentActivityItem(
-                ActividadReciente("Juan Pérez", "PC-7", "08:30", EstadoPrestamo.ACTIVO),
+                ActividadReciente("Juan Pérez", "PC-7", "08:30", TipoMovimiento.PRESTAMO),
             )
             Spacer(Modifier.height(8.dp))
             RecentActivityItem(
-                ActividadReciente("María González", "PC-3", "08:15", EstadoPrestamo.DEVUELTO),
+                ActividadReciente("María González", "PC-3", "08:15", TipoMovimiento.DEVOLUCION),
             )
         }
     }

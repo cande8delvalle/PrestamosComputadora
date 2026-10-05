@@ -21,12 +21,17 @@ interface PrestamoDao {
     suspend fun buscarPrestamoActivoPorCodigoComputadora(codigo: String): Prestamo?
 
     /**
-     * Marca el préstamo como DEVUELTO. Solo actualiza si seguía ACTIVO: devuelve la cantidad de
-     * filas afectadas (0 = no existe o ya estaba devuelto).
+     * Marca el préstamo como DEVUELTO y guarda quién recibió el equipo. Solo actualiza si seguía
+     * ACTIVO: devuelve la cantidad de filas afectadas (0 = no existe o ya estaba devuelto).
      */
     @Query(
-        "UPDATE prestamo SET fecha_devolucion = :fechaDevolucion, estado = 'DEVUELTO' " +
+        "UPDATE prestamo SET fecha_devolucion = :fechaDevolucion, estado = 'DEVUELTO', " +
+            "id_administrador_devolucion = :idAdministradorDevolucion " +
             "WHERE id_prestamo = :idPrestamo AND estado = 'ACTIVO'",
     )
-    suspend fun actualizarDevolucion(idPrestamo: Long, fechaDevolucion: Long): Int
+    suspend fun actualizarDevolucion(
+        idPrestamo: Long,
+        fechaDevolucion: Long,
+        idAdministradorDevolucion: Long,
+    ): Int
 }

@@ -4,11 +4,13 @@ import com.ien.prestamoscomputadoras.data.entity.Alumno
 import com.ien.prestamoscomputadoras.data.entity.Computadora
 import com.ien.prestamoscomputadoras.data.entity.Prestamo
 import com.ien.prestamoscomputadoras.data.repository.DevolucionRepository
+import com.ien.prestamoscomputadoras.util.SesionActual
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -34,9 +36,15 @@ class RegistrarDevolucionViewModelTest {
 
     @Before
     fun setUp() = runTest {
+        SesionActual.administradorId = 3
         prestamoDao.insertar(
-            Prestamo(idAlumno = 1, idComputadora = 12, idAdministrador = 1, fechaPrestamo = 10_000L),
+            Prestamo(idAlumno = 1, idComputadora = 12, idAdministradorPrestamo = 1, fechaPrestamo = 10_000L),
         )
+    }
+
+    @After
+    fun tearDown() {
+        SesionActual.administradorId = null
     }
 
     @Test
@@ -102,15 +110,31 @@ class RegistrarDevolucionViewModelTest {
         val prestamo = prestamoDao.prestamos.single()
         assertEquals(Prestamo.ESTADO_DEVUELTO, prestamo.estado)
         assertEquals(90_000L, prestamo.fechaDevolucion)
+        // Quien entregó no cambia; quien recibió es el administrador de la sesión.
+        assertEquals(1L, prestamo.idAdministradorPrestamo)
+        assertEquals(3L, prestamo.idAdministradorDevolucion)
 
         assertTrue(vm.uiState.mostrarModalExito)
         assertFalse(vm.uiState.isLoading)
     }
 
     @Test
+    fun sinSesion_noGuardaYMuestraError() {
+        val vm = nuevoVm().apply { onCodigoEscaneado("PC-12") }
+        SesionActual.administradorId = null
+
+        vm.onConfirmarClick()
+
+        assertTrue(estadoDao.estados.isEmpty())
+        assertEquals(Prestamo.ESTADO_ACTIVO, prestamoDao.prestamos.single().estado)
+        assertEquals(ERROR_SIN_SESION, vm.uiState.errorConfirmacion)
+        assertFalse(vm.uiState.mostrarModalExito)
+    }
+
+    @Test
     fun prestamoYaDevuelto_noGuardaRevisionYMuestraError() = runTest {
         val vm = nuevoVm().apply { onCodigoEscaneado("PC-12") }
-        prestamoDao.actualizarDevolucion(1, 60_000L)
+        prestamoDao.actualizarDevolucion(1, 60_000L, idAdministradorDevolucion = 2)
 
         vm.onConfirmarClick()
 

@@ -57,6 +57,56 @@ val MIGRACION_4_5 = object : Migration(4, 5) {
     }
 }
 
+/**
+ * v5 -> v6: el administrador del préstamo se separa en quien entregó la computadora
+ * (`id_administrador_prestamo`) y quien recibió la devolución (`id_administrador_devolucion`).
+ * Conserva todos los datos: el administrador que ya estaba pasa a ser el que entregó. En los
+ * préstamos ya devueltos no se sabe quién recibió el equipo, así que queda en `null`.
+ *
+ * Igual que en v5, el SQL de la tabla es copia exacta del que genera Room.
+ */
+val MIGRACION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `prestamo_nueva` (`id_prestamo` INTEGER PRIMARY KEY " +
+                "AUTOINCREMENT NOT NULL, `id_alumno` INTEGER NOT NULL, `id_computadora` INTEGER NOT NULL, " +
+                "`id_administrador_prestamo` INTEGER NOT NULL, `fecha_prestamo` INTEGER NOT NULL, " +
+                "`fecha_devolucion` INTEGER, `id_administrador_devolucion` INTEGER, " +
+                "`estado` TEXT NOT NULL, `observaciones_iniciales` TEXT, " +
+                "FOREIGN KEY(`id_alumno`) REFERENCES `alumno`(`id_alumno`) " +
+                "ON UPDATE NO ACTION ON DELETE RESTRICT , " +
+                "FOREIGN KEY(`id_computadora`) REFERENCES `computadora`(`id_computadora`) " +
+                "ON UPDATE NO ACTION ON DELETE RESTRICT , " +
+                "FOREIGN KEY(`id_administrador_prestamo`) REFERENCES `administrador`(`id_administrador`) " +
+                "ON UPDATE NO ACTION ON DELETE RESTRICT , " +
+                "FOREIGN KEY(`id_administrador_devolucion`) REFERENCES `administrador`(`id_administrador`) " +
+                "ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        )
+        db.execSQL(
+            "INSERT INTO `prestamo_nueva` (`id_prestamo`, `id_alumno`, `id_computadora`, " +
+                "`id_administrador_prestamo`, `fecha_prestamo`, `fecha_devolucion`, " +
+                "`id_administrador_devolucion`, `estado`, `observaciones_iniciales`) " +
+                "SELECT `id_prestamo`, `id_alumno`, `id_computadora`, `id_administrador`, " +
+                "`fecha_prestamo`, `fecha_devolucion`, NULL, `estado`, `observaciones_iniciales` " +
+                "FROM `prestamo`",
+        )
+        db.execSQL("DROP TABLE `prestamo`")
+        db.execSQL("ALTER TABLE `prestamo_nueva` RENAME TO `prestamo`")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_prestamo_id_alumno` ON `prestamo` (`id_alumno`)")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_prestamo_id_computadora` ON `prestamo` (`id_computadora`)",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_prestamo_id_administrador_prestamo` " +
+                "ON `prestamo` (`id_administrador_prestamo`)",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_prestamo_id_administrador_devolucion` " +
+                "ON `prestamo` (`id_administrador_devolucion`)",
+        )
+    }
+}
+
 /** En una instalación nueva, crea los roles y los permisos iniciales junto con la base. */
 val CALLBACK_DATOS_INICIALES = object : RoomDatabase.Callback() {
     override fun onCreate(db: SupportSQLiteDatabase) {

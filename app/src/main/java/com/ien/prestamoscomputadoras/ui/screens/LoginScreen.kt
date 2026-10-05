@@ -33,7 +33,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalAutofillManager
+import androidx.compose.ui.semantics.contentType
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -67,13 +71,22 @@ fun LoginScreen(
     onLoginExitoso: () -> Unit = {},
 ) {
     val uiState = viewModel.uiState
+    // `null` si el dispositivo no tiene un servicio de autofill activo.
+    val autofillManager = LocalAutofillManager.current
 
     LoginContent(
         uiState = uiState,
         onUsuarioChange = viewModel::onUsuarioChange,
         onContrasenaChange = viewModel::onContrasenaChange,
         onToggleMostrarContrasena = viewModel::onToggleMostrarContrasena,
-        onLoginClick = { viewModel.onLoginClick(onLoginExitoso) },
+        onLoginClick = {
+            viewModel.onLoginClick {
+                // Le avisa al servicio de autofill que el formulario se envió bien, ANTES de
+                // navegar (que saca los campos de la pantalla): así ofrece guardar las credenciales.
+                autofillManager?.commit()
+                onLoginExitoso()
+            }
+        },
         onCrearCuentaClick = onCrearCuentaClick,
         modifier = modifier,
     )
@@ -125,10 +138,14 @@ private fun LoginContent(
             Spacer(Modifier.height(28.dp))
 
             FieldLabel("Usuario")
+            // ContentType le dice al framework de Autofill qué es cada campo. Usuario + Password
+            // en la misma pantalla es lo que lo reconoce como formulario de login.
             OutlinedTextField(
                 value = uiState.usuario,
                 onValueChange = onUsuarioChange,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentType = ContentType.Username },
                 singleLine = true,
                 leadingIcon = {
                     Icon(Icons.Filled.Person, contentDescription = null)
@@ -146,7 +163,9 @@ private fun LoginContent(
             OutlinedTextField(
                 value = uiState.contrasena,
                 onValueChange = onContrasenaChange,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentType = ContentType.Password },
                 singleLine = true,
                 leadingIcon = {
                     Icon(Icons.Filled.Lock, contentDescription = null)

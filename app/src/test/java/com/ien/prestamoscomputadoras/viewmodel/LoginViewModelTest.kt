@@ -2,6 +2,7 @@ package com.ien.prestamoscomputadoras.viewmodel
 
 import com.ien.prestamoscomputadoras.data.entity.Administrador
 import com.ien.prestamoscomputadoras.data.repository.AdministradorRepository
+import com.ien.prestamoscomputadoras.data.repository.HomeRepository
 import com.ien.prestamoscomputadoras.data.repository.PermisosRepository
 import com.ien.prestamoscomputadoras.util.SesionActual
 import com.ien.prestamoscomputadoras.util.hashPassword
@@ -77,7 +78,7 @@ class LoginViewModelTest {
     @Test
     fun cerrarSesion_limpiaElAdministrador() {
         login("Jperez", "secreta1")
-        HomeViewModel(FakeHomeDao(), PermisosRepository(FakeRolDao()), idAdministrador = null).cerrarSesion()
+        HomeViewModel(HomeRepository(FakeHomeDao()), PermisosRepository(FakeRolDao()), idAdministrador = null).cerrarSesion()
         assertNull(SesionActual.administradorId)
     }
 }

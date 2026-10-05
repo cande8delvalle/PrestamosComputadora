@@ -34,7 +34,9 @@ import com.ien.prestamoscomputadoras.data.entity.RolPermiso
     // v3: se quita Computadora.disponible (se calcula) y se agrega Prestamo.observacionesIniciales.
     // v4: Computadora.modelo (opcional).
     // v5: roles y permisos (tablas rol y rol_permiso, Administrador.id_rol). Con migración real.
-    version = 5,
+    // v6: Prestamo.id_administrador se separa en id_administrador_prestamo y
+    //     id_administrador_devolucion. Con migración real.
+    version = 6,
     // Sin export de esquema por ahora. Activarlo (con room.schemaLocation) antes de la
     // primera versión publicada, para poder escribir migraciones.
     exportSchema = false,
@@ -67,7 +69,7 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                     // Desde v5 hay migraciones reales (ver Migraciones.kt). Las versiones
                     // anteriores a 4 no tienen migración: se borran y recrean.
-                    .addMigrations(MIGRACION_4_5)
+                    .addMigrations(MIGRACION_4_5, MIGRACION_5_6)
                     .addCallback(CALLBACK_DATOS_INICIALES)
                     .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1, 2, 3)
                     .build().also { instancia = it }

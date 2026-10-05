@@ -109,7 +109,7 @@ class RegistrarPrestamoViewModel(
         val prestamo = Prestamo(
             idAlumno = s.alumnoSeleccionado!!.idAlumno,
             idComputadora = s.computadoraSeleccionada!!.idComputadora,
-            idAdministrador = administradorId,
+            idAdministradorPrestamo = administradorId,
             fechaPrestamo = ahora(),
             fechaDevolucion = null,
             estado = Prestamo.ESTADO_ACTIVO,
