@@ -104,10 +104,18 @@ class FakePrestamoYComputadoraDao(
         }
     }
 
-    override suspend fun actualizarDevolucion(idPrestamo: Long, fechaDevolucion: Long): Int {
+    override suspend fun actualizarDevolucion(
+        idPrestamo: Long,
+        fechaDevolucion: Long,
+        idAdministradorDevolucion: Long,
+    ): Int {
         val i = prestamos.indexOfFirst { it.idPrestamo == idPrestamo && it.estado == Prestamo.ESTADO_ACTIVO }
         if (i == -1) return 0
-        prestamos[i] = prestamos[i].copy(fechaDevolucion = fechaDevolucion, estado = Prestamo.ESTADO_DEVUELTO)
+        prestamos[i] = prestamos[i].copy(
+            fechaDevolucion = fechaDevolucion,
+            estado = Prestamo.ESTADO_DEVUELTO,
+            idAdministradorDevolucion = idAdministradorDevolucion,
+        )
         return 1
     }
 
@@ -148,17 +156,29 @@ class FakeHomeDao : HomeDao {
             }
         }
 
-    override fun movimientosEntre(desde: Long, hasta: Long, limite: Int): Flow<List<MovimientoReciente>> =
+    override fun movimientosRecientes(limite: Int): Flow<List<MovimientoReciente>> =
         prestamos.map { lista ->
-            lista
-                .map {
-                    val fecha = if (it.estado == Prestamo.ESTADO_DEVUELTO) it.fechaDevolucion!! else it.fechaPrestamo
-                    MovimientoReciente("Juan", "Pérez", "PC-${it.idComputadora}", it.estado, fecha)
-                }
-                .filter { it.fechaMovimiento in desde until hasta }
-                .sortedByDescending { it.fechaMovimiento }
+            val entregas = lista.map { movimiento(it, MovimientoReciente.TIPO_PRESTAMO, it.fechaPrestamo) }
+            val devoluciones = lista.filter { it.estado == Prestamo.ESTADO_DEVUELTO }.map {
+                movimiento(it, MovimientoReciente.TIPO_DEVOLUCION, it.fechaDevolucion!!)
+            }
+            (entregas + devoluciones)
+                .sortedWith(
+                    compareByDescending<MovimientoReciente> { it.fechaMovimiento }
+                        .thenBy { it.tipo }
+                        .thenByDescending { it.idPrestamo },
+                )
                 .take(limite)
         }
+
+    private fun movimiento(p: Prestamo, tipo: String, fecha: Long) = MovimientoReciente(
+        idPrestamo = p.idPrestamo,
+        alumnoNombre = "Juan",
+        alumnoApellido = "Pérez",
+        codigoComputadora = "PC-${p.idComputadora}",
+        tipo = tipo,
+        fechaMovimiento = fecha,
+    )
 }
 
 /** Rol de cada administrador y permisos por rol, observables como en Room. */

@@ -15,7 +15,7 @@ class DaniosUtilsTest {
         idPrestamo = 1,
         idAlumno = 1,
         idComputadora = 1,
-        idAdministrador = 1,
+        idAdministradorPrestamo = 1,
         fechaPrestamo = 0,
         estado = estado,
         observacionesIniciales = observaciones,

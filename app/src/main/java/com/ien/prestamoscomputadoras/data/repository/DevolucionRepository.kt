@@ -46,8 +46,8 @@ class DevolucionRepository(
     }
 
     /**
-     * Cierra el préstamo: lo marca DEVUELTO con [fecha] y guarda la revisión del equipo.
-     * Lanza [PrestamoYaDevueltoException] (sin guardar nada) si el préstamo ya no estaba ACTIVO.
+     * Cierra el préstamo: lo marca DEVUELTO con [fecha], registra que lo recibió
+     * [idAdministradorDevolucion] y guarda la revisión del equipo. Lanza [PrestamoYaDevueltoException] (sin guardar nada) si el préstamo ya no estaba ACTIVO.
      */
     suspend fun registrarDevolucion(
         idPrestamo: Long,
@@ -56,9 +56,10 @@ class DevolucionRepository(
         cargador: Boolean,
         observaciones: String?,
         fecha: Long,
+        idAdministradorDevolucion: Long,
     ) {
         enTransaccion {
-            if (prestamoDao.actualizarDevolucion(idPrestamo, fecha) == 0) {
+            if (prestamoDao.actualizarDevolucion(idPrestamo, fecha, idAdministradorDevolucion) == 0) {
                 throw PrestamoYaDevueltoException()
             }
             estadoComputadoraDao.insertar(

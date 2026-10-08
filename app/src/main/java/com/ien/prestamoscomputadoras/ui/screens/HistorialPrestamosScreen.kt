@@ -276,10 +276,18 @@ private fun TarjetaPrestamo(tarjeta: TarjetaHistorial, onAlertaClick: (TipoAlert
             HorizontalDivider(color = IenPurple.copy(alpha = 0.08f))
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "Gestionado por: ${tarjeta.gestionadoPor}",
+                text = "Prestado por: ${tarjeta.prestadoPor}",
                 color = IenGreyText,
                 fontSize = 11.sp,
             )
+            // Solo si ya se devolvió: mientras está activo no hay quién la haya recibido.
+            if (tarjeta.devueltoPor != null) {
+                Text(
+                    text = "Devuelto por: ${tarjeta.devueltoPor}",
+                    color = IenGreyText,
+                    fontSize = 11.sp,
+                )
+            }
         }
     }
 }
@@ -345,7 +353,7 @@ private fun HistorialPrestamosPreview() {
                         horaPrestamo = "17:00", horaDevolucion = null,
                         estado = EstadoPrestamo.ACTIVO,
                         observacionEntrega = "Rayón en la tapa", danioDevolucion = null,
-                        gestionadoPor = "Ana López", fechaPrestamoMs = 2,
+                        prestadoPor = "Ana López", devueltoPor = null, fechaPrestamoMs = 2,
                     ),
                     TarjetaHistorial(
                         idPrestamo = 1, nombreAlumno = "María González", dniAlumno = "45.987.654",
@@ -356,7 +364,7 @@ private fun HistorialPrestamosPreview() {
                         danioDevolucion = RevisionDevolucion(
                             enciende = true, pantallaOk = true, cargador = false, observaciones = null,
                         ),
-                        gestionadoPor = "Carlos Díaz", fechaPrestamoMs = 1,
+                        prestadoPor = "Carlos Díaz", devueltoPor = "Ana López", fechaPrestamoMs = 1,
                     ),
                 ),
             ),

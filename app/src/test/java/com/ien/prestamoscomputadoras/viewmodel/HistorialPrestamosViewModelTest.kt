@@ -4,6 +4,7 @@ import com.ien.prestamoscomputadoras.data.dao.HistorialDao
 import com.ien.prestamoscomputadoras.data.dao.PrestamoHistorial
 import com.ien.prestamoscomputadoras.data.entity.EstadoComputadora
 import com.ien.prestamoscomputadoras.data.entity.Prestamo
+import com.ien.prestamoscomputadoras.data.repository.HistorialRepository
 import java.util.Calendar
 import java.util.TimeZone
 import org.junit.Assert.assertEquals
@@ -48,14 +49,16 @@ class HistorialPrestamosViewModelTest {
         observacionesIniciales: String? = null,
         revision: EstadoComputadora? = null,
         admin: Pair<String, String> = "Ana" to "López",
+        adminDevolucion: Pair<String, String>? = if (fechaDevolucion != null) "Marta" to "Ruiz" else null,
     ) = PrestamoHistorial(
         prestamo = Prestamo(
             idPrestamo = id,
             idAlumno = 1,
             idComputadora = 7,
-            idAdministrador = 1,
+            idAdministradorPrestamo = 1,
             fechaPrestamo = fechaPrestamo,
             fechaDevolucion = fechaDevolucion,
+            idAdministradorDevolucion = if (adminDevolucion != null) 2 else null,
             estado = if (fechaDevolucion != null) Prestamo.ESTADO_DEVUELTO else Prestamo.ESTADO_ACTIVO,
             observacionesIniciales = observacionesIniciales,
         ),
@@ -64,8 +67,10 @@ class HistorialPrestamosViewModelTest {
         alumnoApellido = "Pérez",
         alumnoDni = "46111222",
         codigoComputadora = "PC-7",
-        adminNombre = admin.first,
-        adminApellido = admin.second,
+        adminPrestamoNombre = admin.first,
+        adminPrestamoApellido = admin.second,
+        adminDevolucionNombre = adminDevolucion?.first,
+        adminDevolucionApellido = adminDevolucion?.second,
     )
 
     private fun revision(idPrestamo: Long, cargador: Boolean = true, observaciones: String? = null) =
@@ -108,7 +113,7 @@ class HistorialPrestamosViewModelTest {
                 fila(4, fecha(30, 17)), // hoy, más tarde
             ),
         )
-        val vm = HistorialPrestamosViewModel(dao, ahora = { ahora })
+        val vm = HistorialPrestamosViewModel(HistorialRepository(dao), ahora = { ahora })
 
         assertEquals(fecha(28, 0), dao.desde)
         assertFalse(vm.uiState.cargando)
@@ -132,7 +137,7 @@ class HistorialPrestamosViewModelTest {
                 fila(2, fecha(30, 17), admin = "Carlos" to "Díaz"),
             ),
         )
-        val vm = HistorialPrestamosViewModel(dao, ahora = { ahora })
+        val vm = HistorialPrestamosViewModel(HistorialRepository(dao), ahora = { ahora })
         val (activa, devuelta) = vm.uiState.tarjetas
 
         assertEquals(EstadoPrestamo.DEVUELTO, devuelta.estado)
@@ -142,12 +147,28 @@ class HistorialPrestamosViewModelTest {
         assertEquals("30/09/2026", devuelta.fechaPrestamo)
         assertEquals("09:30", devuelta.horaPrestamo)
         assertEquals("10:45", devuelta.horaDevolucion)
-        assertEquals("Ana López", devuelta.gestionadoPor)
+        assertEquals("Ana López", devuelta.prestadoPor)
+        assertEquals("Marta Ruiz", devuelta.devueltoPor)
 
         assertEquals(EstadoPrestamo.ACTIVO, activa.estado)
         assertEquals("17:00", activa.horaPrestamo)
         assertNull(activa.horaDevolucion)
-        assertEquals("Carlos Díaz", activa.gestionadoPor)
+        assertEquals("Carlos Díaz", activa.prestadoPor)
+        assertNull(activa.devueltoPor)
+    }
+
+    @Test
+    fun tarjeta_devueltaAntesDeV6_sinDevueltoPor() {
+        // Devuelta antes de que se guardara quién la recibió: solo se sabe quién la prestó.
+        val dao = FakeHistorialDao(
+            listOf(fila(1, fecha(30, 9), fechaDevolucion = fecha(30, 10), adminDevolucion = null)),
+        )
+        val vm = HistorialPrestamosViewModel(HistorialRepository(dao), ahora = { ahora })
+        val tarjeta = vm.uiState.tarjetas.single()
+
+        assertEquals(EstadoPrestamo.DEVUELTO, tarjeta.estado)
+        assertEquals("Ana López", tarjeta.prestadoPor)
+        assertNull(tarjeta.devueltoPor)
     }
 
     @Test
@@ -170,7 +191,7 @@ class HistorialPrestamosViewModelTest {
                 ),
             ),
         )
-        val vm = HistorialPrestamosViewModel(dao, ahora = { ahora })
+        val vm = HistorialPrestamosViewModel(HistorialRepository(dao), ahora = { ahora })
         vm.onFiltroSeleccionado(FiltroHistorial.ESTA_SEMANA)
         val porId = vm.uiState.tarjetas.associateBy { it.idPrestamo }
 
@@ -194,7 +215,7 @@ class HistorialPrestamosViewModelTest {
     @Test
     fun alerta_abrirYCerrarModal() {
         val dao = FakeHistorialDao(listOf(fila(1, fecha(30, 9), observacionesIniciales = "Rayón")))
-        val vm = HistorialPrestamosViewModel(dao, ahora = { ahora })
+        val vm = HistorialPrestamosViewModel(HistorialRepository(dao), ahora = { ahora })
         val tarjeta = vm.uiState.tarjetas.single()
 
         vm.onAlertaClick(tarjeta, TipoAlerta.OBSERVACION_ENTREGA)
@@ -215,7 +236,7 @@ class HistorialPrestamosViewModelTest {
                 set(2026, Calendar.SEPTEMBER, 30, 20, 46)
             }.timeInMillis
             val dao = FakeHistorialDao(listOf(fila(1, utc, fechaDevolucion = utc + 60 * 60 * 1000L)))
-            val vm = HistorialPrestamosViewModel(dao, ahora = { utc + 2 * 60 * 60 * 1000L })
+            val vm = HistorialPrestamosViewModel(HistorialRepository(dao), ahora = { utc + 2 * 60 * 60 * 1000L })
 
             val tarjeta = vm.uiState.tarjetas.single()
             assertEquals("17:46", tarjeta.horaPrestamo)

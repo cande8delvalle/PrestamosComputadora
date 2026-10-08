@@ -1,8 +1,5 @@
 package com.ien.prestamoscomputadoras.viewmodel
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -10,10 +7,9 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.ien.prestamoscomputadoras.data.AppDatabase
 import com.ien.prestamoscomputadoras.data.Permiso
-import com.ien.prestamoscomputadoras.data.dao.HomeDao
 import com.ien.prestamoscomputadoras.data.dao.MovimientoReciente
-import com.ien.prestamoscomputadoras.data.entity.Prestamo
 import com.ien.prestamoscomputadoras.data.repository.AccesoUsuario
+import com.ien.prestamoscomputadoras.data.repository.HomeRepository
 import com.ien.prestamoscomputadoras.data.repository.PermisosRepository
 import com.ien.prestamoscomputadoras.util.SesionActual
 import java.text.SimpleDateFormat
@@ -23,10 +19,14 @@ import java.util.TimeZone
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** Cantidad máxima de ítems en "Actividad reciente". */
@@ -35,8 +35,11 @@ private const val LIMITE_ACTIVIDAD_RECIENTE = 5
 /** Cada cuánto se revisa si cambió el día (para que "hoy" se renueve pasada la medianoche). */
 private const val INTERVALO_CHEQUEO_DIA_MS = 60_000L
 
-/** Estado de un préstamo mostrado en la actividad reciente. */
+/** Estado de un préstamo (lo usa la tarjeta del historial). */
 enum class EstadoPrestamo { ACTIVO, DEVUELTO }
+
+/** Qué fue un movimiento de "Actividad reciente": la entrega o la devolución de un equipo. */
+enum class TipoMovimiento { PRESTAMO, DEVOLUCION }
 
 /** Un ítem de la lista "Actividad reciente" de la pantalla de inicio. */
 data class ActividadReciente(
@@ -44,16 +47,18 @@ data class ActividadReciente(
     val codigoComputadora: String,
     /** Hora ya formateada para mostrar, ej: "08:30". */
     val hora: String,
-    val estado: EstadoPrestamo,
+    val tipo: TipoMovimiento,
 )
 
 /**
- * Estado local de la pantalla de inicio.
+ * Estado de la pantalla de inicio.
  *
  * Es inmutable: el ViewModel genera un nuevo [HomeUiState] con [copy] en cada cambio.
  */
 data class HomeUiState(
+    /** Préstamos en curso (todavía no devueltos), de cualquier fecha. */
     val cantidadPrestados: Int = 0,
+    /** Devoluciones registradas hoy. */
     val cantidadDevueltosHoy: Int = 0,
     val actividadReciente: List<ActividadReciente> = emptyList(),
     /**
@@ -66,15 +71,16 @@ data class HomeUiState(
 /**
  * ViewModel de [com.ien.prestamoscomputadoras.ui.screens.HomeScreen].
  *
- * Escucha la base (Room) mientras Home está en la pila:
- * - "Prestados": préstamos ACTIVO en este momento.
- * - "Devueltos hoy": préstamos DEVUELTO con fecha de devolución de hoy.
- * - "Actividad reciente": últimos movimientos de hoy (entrega o devolución), más reciente primero.
+ * Expone [uiState] como [StateFlow] y escucha la base (Room) mientras Home está en la pila:
+ * - "Prestados": préstamos ACTIVO en este momento, de cualquier fecha (baja al devolverlos).
+ * - "Devueltos hoy": préstamos con fecha de devolución de hoy.
+ * - "Actividad reciente": últimos préstamos y devoluciones, mezclados, más reciente primero.
+ *   Sin quién los gestionó: esa trazabilidad se ve solo en el Historial.
  * - El acceso del usuario logueado: qué acciones rápidas ve y si ve la sección Administración.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModel(
-    private val homeDao: HomeDao,
+    private val homeRepository: HomeRepository,
     private val permisosRepository: PermisosRepository,
     /** Administrador de la sesión actual (`null` si no hay sesión). */
     private val idAdministrador: Long?,
@@ -82,8 +88,8 @@ class HomeViewModel(
     private val ahora: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
 
-    var uiState by mutableStateOf(HomeUiState())
-        private set
+    private val _uiState = MutableStateFlow(HomeUiState())
+    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -91,21 +97,27 @@ class HomeViewModel(
                 .flatMapLatest { inicioHoy ->
                     val finHoy = rangoSemana(inicioHoy).finHoy
                     combine(
-                        homeDao.contarActivos(),
-                        homeDao.contarDevueltosEntre(inicioHoy, finHoy),
-                        homeDao.movimientosEntre(inicioHoy, finHoy, LIMITE_ACTIVIDAD_RECIENTE),
+                        homeRepository.activos(),
+                        homeRepository.devueltosEntre(inicioHoy, finHoy),
+                        homeRepository.movimientosRecientes(LIMITE_ACTIVIDAD_RECIENTE),
                     ) { activos, devueltosHoy, movimientos ->
-                        HomeUiState(
+                        Triple(activos, devueltosHoy, movimientos.map { it.aActividad() })
+                    }
+                }
+                .collect { (activos, devueltosHoy, actividad) ->
+                    _uiState.update {
+                        it.copy(
                             cantidadPrestados = activos,
                             cantidadDevueltosHoy = devueltosHoy,
-                            actividadReciente = movimientos.map { it.aActividad() },
+                            actividadReciente = actividad,
                         )
                     }
                 }
-                .collect { uiState = it.copy(acceso = uiState.acceso) }
         }
         viewModelScope.launch {
-            permisosRepository.accesoDe(idAdministrador).collect { uiState = uiState.copy(acceso = it) }
+            permisosRepository.accesoDe(idAdministrador).collect { acceso ->
+                _uiState.update { it.copy(acceso = acceso) }
+            }
         }
     }
 
@@ -123,13 +135,13 @@ class HomeViewModel(
     }.distinctUntilChanged()
 
     companion object {
-        /** Crea el ViewModel con su DAO (Room) a partir del Application. */
+        /** Crea el ViewModel con sus repositorios (Room) a partir del Application. */
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = checkNotNull(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
                 val db = AppDatabase.getInstance(app)
                 HomeViewModel(
-                    homeDao = db.homeDao(),
+                    homeRepository = HomeRepository(db.homeDao()),
                     permisosRepository = PermisosRepository(db.rolDao()),
                     idAdministrador = SesionActual.administradorId,
                 )
@@ -141,10 +153,10 @@ class HomeViewModel(
             cantidadPrestados = 2,
             cantidadDevueltosHoy = 4,
             actividadReciente = listOf(
-                ActividadReciente("Juan Pérez", "PC-7", "08:30", EstadoPrestamo.ACTIVO),
-                ActividadReciente("María González", "PC-3", "08:15", EstadoPrestamo.DEVUELTO),
-                ActividadReciente("Lucas Fernández", "PC-12", "07:50", EstadoPrestamo.ACTIVO),
-                ActividadReciente("Sofía Romero", "PC-5", "07:45", EstadoPrestamo.DEVUELTO),
+                ActividadReciente("Juan Pérez", "PC-7", "08:30", TipoMovimiento.PRESTAMO),
+                ActividadReciente("María González", "PC-3", "08:15", TipoMovimiento.DEVOLUCION),
+                ActividadReciente("Lucas Fernández", "PC-12", "07:50", TipoMovimiento.PRESTAMO),
+                ActividadReciente("Sofía Romero", "PC-5", "07:45", TipoMovimiento.DEVOLUCION),
             ),
             acceso = AccesoUsuario(esAdmin = true, permisos = Permiso.entries.toSet()),
         )
@@ -157,5 +169,5 @@ private fun MovimientoReciente.aActividad() = ActividadReciente(
     hora = SimpleDateFormat("HH:mm", Locale.US)
         .apply { timeZone = TimeZone.getDefault() }
         .format(Date(fechaMovimiento)),
-    estado = if (estado == Prestamo.ESTADO_DEVUELTO) EstadoPrestamo.DEVUELTO else EstadoPrestamo.ACTIVO,
+    tipo = if (tipo == MovimientoReciente.TIPO_DEVOLUCION) TipoMovimiento.DEVOLUCION else TipoMovimiento.PRESTAMO,
 )
