@@ -17,12 +17,12 @@ class RolesPermisosViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val rolDao = FakeRolDao(
-        rolesPorAdministrador = mapOf(1L to Rol.ID_ADMIN, 2L to Rol.ID_PERSONAL),
+        rolesPorUsuario = mapOf(1L to Rol.ID_ADMIN, 2L to Rol.ID_PERSONAL),
         permisosIniciales = Permiso.inicialesPersonal.map { RolPermiso(Rol.ID_PERSONAL, it.name) }.toSet(),
     )
 
-    private fun nuevoVm(idAdministrador: Long? = 1L) =
-        RolesPermisosViewModel(PermisosRepository(rolDao), idAdministrador)
+    private fun nuevoVm(idUsuario: Long? = 1L) =
+        RolesPermisosViewModel(PermisosRepository(rolDao), idUsuario)
 
     private fun permisosPersonalGuardados() =
         rolDao.permisos.value.filter { it.idRol == Rol.ID_PERSONAL }.map { it.permiso }.toSet()
@@ -87,7 +87,7 @@ class RolesPermisosViewModelTest {
 
     @Test
     fun personalAdministrativo_noTieneAcceso_niPuedeEditar() {
-        val vm = nuevoVm(idAdministrador = 2L)
+        val vm = nuevoVm(idUsuario = 2L)
         assertFalse(vm.uiState.cargando)
         assertFalse(vm.uiState.esAdmin)
 
@@ -99,7 +99,7 @@ class RolesPermisosViewModelTest {
 
     @Test
     fun sinSesion_noTieneAcceso() {
-        val vm = nuevoVm(idAdministrador = null)
+        val vm = nuevoVm(idUsuario = null)
         assertFalse(vm.uiState.esAdmin)
     }
 }

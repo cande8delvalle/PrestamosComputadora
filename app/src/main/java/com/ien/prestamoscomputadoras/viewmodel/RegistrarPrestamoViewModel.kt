@@ -84,7 +84,7 @@ class RegistrarPrestamoViewModel(
      * Valida y guarda. Reglas:
      * 1. Sin alumno -> [ERROR_SELECCIONAR_ALUMNO]; sin computadora -> [ERROR_SELECCIONAR_COMPUTADORA].
      *    Se muestran los dos a la vez si faltan ambos.
-     * 2. Sin administrador en [SesionActual] -> [ERROR_SIN_SESION] (no se puede guardar el FK).
+     * 2. Sin usuario en [SesionActual] -> [ERROR_SIN_SESION] (no se puede guardar el FK).
      * 3. Si todo pasa, se inserta el préstamo ACTIVO con la fecha/hora del dispositivo en
      *    este momento (no es un campo del formulario) y se muestra el modal de éxito.
      */
@@ -100,8 +100,8 @@ class RegistrarPrestamoViewModel(
             return
         }
 
-        val administradorId = SesionActual.administradorId
-        if (administradorId == null) {
+        val usuarioId = SesionActual.usuarioId
+        if (usuarioId == null) {
             uiState = s.copy(errorGeneral = ERROR_SIN_SESION)
             return
         }
@@ -109,7 +109,7 @@ class RegistrarPrestamoViewModel(
         val prestamo = Prestamo(
             idAlumno = s.alumnoSeleccionado!!.idAlumno,
             idComputadora = s.computadoraSeleccionada!!.idComputadora,
-            idAdministradorPrestamo = administradorId,
+            idUsuarioPrestamo = usuarioId,
             fechaPrestamo = ahora(),
             fechaDevolucion = null,
             estado = Prestamo.ESTADO_ACTIVO,

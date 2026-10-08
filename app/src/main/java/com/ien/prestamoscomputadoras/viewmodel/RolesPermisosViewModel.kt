@@ -57,7 +57,7 @@ data class RolesPermisosUiState(
  */
 class RolesPermisosViewModel(
     private val permisosRepository: PermisosRepository,
-    private val idAdministrador: Long?,
+    private val idUsuario: Long?,
 ) : ViewModel() {
 
     var uiState by mutableStateOf(RolesPermisosUiState())
@@ -66,7 +66,7 @@ class RolesPermisosViewModel(
     init {
         viewModelScope.launch {
             combine(
-                permisosRepository.accesoDe(idAdministrador),
+                permisosRepository.accesoDe(idUsuario),
                 permisosRepository.permisosPersonal(),
             ) { acceso, permisosPersonal ->
                 uiState.copy(cargando = false, esAdmin = acceso.esAdmin, permisosPersonal = permisosPersonal)
@@ -99,7 +99,7 @@ class RolesPermisosViewModel(
                 val app = checkNotNull(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
                 RolesPermisosViewModel(
                     PermisosRepository(AppDatabase.getInstance(app).rolDao()),
-                    idAdministrador = SesionActual.administradorId,
+                    idUsuario = SesionActual.usuarioId,
                 )
             }
         }

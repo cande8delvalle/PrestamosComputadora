@@ -34,12 +34,12 @@ class RegistrarPrestamoViewModelTest {
 
     @Before
     fun setUp() {
-        SesionActual.administradorId = 5
+        SesionActual.usuarioId = 5
     }
 
     @After
     fun tearDown() {
-        SesionActual.administradorId = null
+        SesionActual.usuarioId = null
     }
 
     @Test
@@ -74,7 +74,7 @@ class RegistrarPrestamoViewModelTest {
 
     @Test
     fun sinSesion_muestraErrorYNoGuarda() {
-        SesionActual.administradorId = null
+        SesionActual.usuarioId = null
         val vm = nuevoVm().apply {
             onAlumnoSeleccionado(maria)
             onComputadoraSeleccionada(pc07)
@@ -97,8 +97,8 @@ class RegistrarPrestamoViewModelTest {
         val p = prestamoYComputadoraDao.prestamos.single()
         assertEquals(1L, p.idAlumno)
         assertEquals(7L, p.idComputadora)
-        assertEquals(5L, p.idAdministradorPrestamo)
-        assertNull(p.idAdministradorDevolucion)
+        assertEquals(5L, p.idUsuarioPrestamo)
+        assertNull(p.idUsuarioDevolucion)
         assertEquals(1_000L, p.fechaPrestamo)
         assertNull(p.fechaDevolucion)
         assertEquals(Prestamo.ESTADO_ACTIVO, p.estado)

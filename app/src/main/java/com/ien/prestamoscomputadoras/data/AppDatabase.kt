@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.ien.prestamoscomputadoras.data.dao.AdministradorDao
 import com.ien.prestamoscomputadoras.data.dao.AlumnoDao
 import com.ien.prestamoscomputadoras.data.dao.ComputadoraDao
 import com.ien.prestamoscomputadoras.data.dao.EstadoComputadoraDao
@@ -12,17 +11,18 @@ import com.ien.prestamoscomputadoras.data.dao.HistorialDao
 import com.ien.prestamoscomputadoras.data.dao.HomeDao
 import com.ien.prestamoscomputadoras.data.dao.PrestamoDao
 import com.ien.prestamoscomputadoras.data.dao.RolDao
-import com.ien.prestamoscomputadoras.data.entity.Administrador
+import com.ien.prestamoscomputadoras.data.dao.UsuarioDao
 import com.ien.prestamoscomputadoras.data.entity.Alumno
 import com.ien.prestamoscomputadoras.data.entity.Computadora
 import com.ien.prestamoscomputadoras.data.entity.EstadoComputadora
 import com.ien.prestamoscomputadoras.data.entity.Prestamo
 import com.ien.prestamoscomputadoras.data.entity.Rol
 import com.ien.prestamoscomputadoras.data.entity.RolPermiso
+import com.ien.prestamoscomputadoras.data.entity.Usuario
 
 @Database(
     entities = [
-        Administrador::class,
+        Usuario::class,
         Alumno::class,
         Computadora::class,
         Prestamo::class,
@@ -36,14 +36,16 @@ import com.ien.prestamoscomputadoras.data.entity.RolPermiso
     // v5: roles y permisos (tablas rol y rol_permiso, Administrador.id_rol). Con migración real.
     // v6: Prestamo.id_administrador se separa en id_administrador_prestamo y
     //     id_administrador_devolucion. Con migración real.
-    version = 6,
+    // v7: la tabla administrador pasa a llamarse usuario (PK id_usuario) y las FK de Prestamo,
+    //     id_usuario_prestamo e id_usuario_devolucion. Con migración real.
+    version = 7,
     // Sin export de esquema por ahora. Activarlo (con room.schemaLocation) antes de la
     // primera versión publicada, para poder escribir migraciones.
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
 
-    abstract fun administradorDao(): AdministradorDao
+    abstract fun usuarioDao(): UsuarioDao
     abstract fun alumnoDao(): AlumnoDao
     abstract fun computadoraDao(): ComputadoraDao
     abstract fun prestamoDao(): PrestamoDao
@@ -69,7 +71,7 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                     // Desde v5 hay migraciones reales (ver Migraciones.kt). Las versiones
                     // anteriores a 4 no tienen migración: se borran y recrean.
-                    .addMigrations(MIGRACION_4_5, MIGRACION_5_6)
+                    .addMigrations(MIGRACION_4_5, MIGRACION_5_6, MIGRACION_6_7)
                     .addCallback(CALLBACK_DATOS_INICIALES)
                     .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1, 2, 3)
                     .build().also { instancia = it }

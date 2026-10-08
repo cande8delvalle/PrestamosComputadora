@@ -1,6 +1,6 @@
 package com.ien.prestamoscomputadoras.viewmodel
 
-import com.ien.prestamoscomputadoras.data.repository.AdministradorRepository
+import com.ien.prestamoscomputadoras.data.repository.UsuarioRepository
 import com.ien.prestamoscomputadoras.util.hashPassword
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -14,9 +14,9 @@ class RegisterViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private val dao = FakeAdministradorDao()
+    private val dao = FakeUsuarioDao()
 
-    private fun nuevoVm() = RegisterViewModel(AdministradorRepository(dao))
+    private fun nuevoVm() = RegisterViewModel(UsuarioRepository(dao))
 
     private fun vmCompleto(
         dni: String = "40123456",
@@ -52,11 +52,11 @@ class RegisterViewModelTest {
     }
 
     @Test
-    fun formularioValido_guardaAdministradorConHashYCorreoEnMinuscula() {
+    fun formularioValido_guardaUsuarioConHashYCorreoEnMinuscula() {
         val vm = vmCompleto(correo = " Admin@IEN.edu.ar ")
         vm.onCrearCuentaClick()
 
-        val guardado = dao.administradores.single()
+        val guardado = dao.usuarios.single()
         assertEquals("jperez", guardado.nombreUsuario)
         assertEquals("admin@ien.edu.ar", guardado.email)
         assertEquals(hashPassword("secreta1"), guardado.contrasenaHash)
@@ -73,7 +73,7 @@ class RegisterViewModelTest {
         assertEquals(ERROR_NOMBRE_USUARIO_EN_USO, vm.uiState.errores.nombreUsuario)
         assertEquals(ERROR_CORREO_EN_USO, vm.uiState.errores.correo)
         assertFalse(vm.uiState.mostrarModalExito)
-        assertEquals(1, dao.administradores.size)
+        assertEquals(1, dao.usuarios.size)
     }
 
     @Test

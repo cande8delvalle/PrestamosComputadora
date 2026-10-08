@@ -8,10 +8,10 @@ import androidx.room.PrimaryKey
 
 /**
  * Préstamo de una computadora a un alumno. Guarda quién entregó el equipo y quién recibió la
- * devolución, que pueden ser administradores distintos.
+ * devolución, que pueden ser usuarios distintos.
  *
  * Las fechas se guardan como epoch en milisegundos (Long), así no hacen falta TypeConverters.
- * Las FK usan RESTRICT: no se puede borrar un alumno/computadora/administrador con préstamos.
+ * Las FK usan RESTRICT: no se puede borrar un alumno/computadora/usuario con préstamos.
  */
 @Entity(
     tableName = "prestamo",
@@ -29,15 +29,15 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.RESTRICT,
         ),
         ForeignKey(
-            entity = Administrador::class,
-            parentColumns = ["id_administrador"],
-            childColumns = ["id_administrador_prestamo"],
+            entity = Usuario::class,
+            parentColumns = ["id_usuario"],
+            childColumns = ["id_usuario_prestamo"],
             onDelete = ForeignKey.RESTRICT,
         ),
         ForeignKey(
-            entity = Administrador::class,
-            parentColumns = ["id_administrador"],
-            childColumns = ["id_administrador_devolucion"],
+            entity = Usuario::class,
+            parentColumns = ["id_usuario"],
+            childColumns = ["id_usuario_devolucion"],
             onDelete = ForeignKey.RESTRICT,
         ),
     ],
@@ -45,8 +45,8 @@ import androidx.room.PrimaryKey
     indices = [
         Index(value = ["id_alumno"]),
         Index(value = ["id_computadora"]),
-        Index(value = ["id_administrador_prestamo"]),
-        Index(value = ["id_administrador_devolucion"]),
+        Index(value = ["id_usuario_prestamo"]),
+        Index(value = ["id_usuario_devolucion"]),
     ],
 )
 data class Prestamo(
@@ -57,17 +57,17 @@ data class Prestamo(
     val idAlumno: Long,
     @ColumnInfo(name = "id_computadora")
     val idComputadora: Long,
-    /** Administrador que entregó la computadora. */
-    @ColumnInfo(name = "id_administrador_prestamo")
-    val idAdministradorPrestamo: Long,
+    /** Usuario que entregó la computadora. */
+    @ColumnInfo(name = "id_usuario_prestamo")
+    val idUsuarioPrestamo: Long,
     @ColumnInfo(name = "fecha_prestamo")
     val fechaPrestamo: Long,
     /** `null` mientras el préstamo sigue activo. */
     @ColumnInfo(name = "fecha_devolucion")
     val fechaDevolucion: Long? = null,
-    /** Administrador que recibió la devolución. `null` mientras el préstamo sigue activo. */
-    @ColumnInfo(name = "id_administrador_devolucion")
-    val idAdministradorDevolucion: Long? = null,
+    /** Usuario que recibió la devolución. `null` mientras el préstamo sigue activo. */
+    @ColumnInfo(name = "id_usuario_devolucion")
+    val idUsuarioDevolucion: Long? = null,
     /** [ESTADO_ACTIVO] o [ESTADO_DEVUELTO]. */
     val estado: String = ESTADO_ACTIVO,
     /**

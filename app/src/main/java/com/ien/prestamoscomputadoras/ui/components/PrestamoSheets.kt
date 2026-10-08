@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Laptop
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -45,6 +47,7 @@ import com.ien.prestamoscomputadoras.ui.theme.IenPurple
 import com.ien.prestamoscomputadoras.ui.theme.IenPurpleDark
 import com.ien.prestamoscomputadoras.ui.theme.IenYellow
 import com.ien.prestamoscomputadoras.viewmodel.AlertaAbierta
+import com.ien.prestamoscomputadoras.viewmodel.EstadoPrestamo
 import com.ien.prestamoscomputadoras.viewmodel.RevisionDevolucion
 import com.ien.prestamoscomputadoras.viewmodel.TarjetaHistorial
 import com.ien.prestamoscomputadoras.viewmodel.TipoAlerta
@@ -56,25 +59,118 @@ val AmbarObservacion = Color(0xFFB26A00)
 /** Rojo de "Daño en la devolución" (chip y modal) y de los checks en FALLA/FALTA. */
 val RojoDanio = Color(0xFFC62828)
 
-/** Verde de los checks OK. */
+/** Verde de los checks OK y del estado "Devuelto". */
 private val VerdeOk = Color(0xFF2E7D32)
 
 /**
- * Hoja deslizante desde abajo con el detalle de una alerta del historial: velo violeta
- * oscuro, hoja crema con barrita arriba, encabezado con ícono, datos del préstamo, el detalle
- * según [AlertaAbierta.tipo] y el botón amarillo "Entendido".
- *
- * También se cierra deslizándola hacia abajo, tocando el velo o con "atrás".
+ * Hoja deslizante desde abajo con el detalle de una alerta del historial: encabezado con ícono,
+ * datos del préstamo y el detalle según [AlertaAbierta.tipo].
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlertaPrestamoSheet(
     alerta: AlertaAbierta,
     onCerrar: () -> Unit,
 ) {
+    val tarjeta = alerta.tarjeta
+    HojaPrestamo(onCerrar = onCerrar) {
+        when (alerta.tipo) {
+            TipoAlerta.OBSERVACION_ENTREGA -> Encabezado(
+                icono = Icons.Filled.Info,
+                color = AmbarObservacion,
+                titulo = "Observación al entregar",
+                subtitulo = "Estado del equipo registrado al momento del préstamo",
+            )
+            TipoAlerta.DANIO_DEVOLUCION -> Encabezado(
+                icono = Icons.Filled.Warning,
+                color = RojoDanio,
+                titulo = "Daño en la devolución",
+                subtitulo = "Resultado de la revisión al devolver el equipo",
+            )
+        }
+
+        DatosPrestamo(tarjeta)
+
+        when (alerta.tipo) {
+            TipoAlerta.OBSERVACION_ENTREGA -> tarjeta.observacionEntrega?.let {
+                CuadroTexto(titulo = "Observaciones al entregar", texto = it)
+            }
+            TipoAlerta.DANIO_DEVOLUCION -> tarjeta.danioDevolucion?.let { RevisionConObservaciones(it) }
+        }
+    }
+}
+
+/**
+ * Hoja con el detalle completo de un préstamo. Es stateless: recibe la [tarjeta] ya armada, así
+ * la pueden abrir el Historial y "Actividad reciente" de Home con sus propios datos.
+ *
+ * Las secciones de observación al entregar y de daño en la devolución aparecen solo si el
+ * préstamo las tiene (las mismas condiciones que los chips del Historial).
+ */
+@Composable
+fun DetallePrestamoSheet(
+    tarjeta: TarjetaHistorial,
+    onCerrar: () -> Unit,
+) {
+    HojaPrestamo(onCerrar = onCerrar) {
+        Encabezado(
+            icono = Icons.Filled.Laptop,
+            color = IenPurple,
+            titulo = "Detalle del préstamo",
+            subtitulo = "${tarjeta.codigoComputadora} · ${tarjeta.fechaPrestamo}",
+        )
+
+        TarjetaBlanca {
+            FilaDato("Alumno", tarjeta.nombreAlumno)
+            Divisor()
+            FilaDato("DNI", tarjeta.dniAlumno)
+            Divisor()
+            FilaDato("Computadora", tarjeta.codigoComputadora)
+            Divisor()
+            FilaDato("Fecha", tarjeta.fechaPrestamo)
+            Divisor()
+            FilaDato("Entrega", "${tarjeta.horaPrestamo} hs")
+            Divisor()
+            FilaDato("Devolución", tarjeta.horaDevolucion?.let { "$it hs" } ?: "Pendiente")
+            Divisor()
+            when (tarjeta.estado) {
+                EstadoPrestamo.ACTIVO -> FilaDato("Estado", "Prestado", colorValor = IenPurple)
+                EstadoPrestamo.DEVUELTO -> FilaDato("Estado", "Devuelto", colorValor = VerdeOk)
+            }
+        }
+
+        TarjetaBlanca {
+            FilaDato("Prestado por", tarjeta.prestadoPor)
+            // Solo si ya se devolvió: mientras está activo no hay quién la haya recibido.
+            if (tarjeta.devueltoPor != null) {
+                Divisor()
+                FilaDato("Devuelto por", tarjeta.devueltoPor)
+            }
+        }
+
+        tarjeta.observacionEntrega?.let {
+            CuadroTexto(titulo = "Observaciones al entregar", texto = it)
+        }
+        tarjeta.danioDevolucion?.let {
+            Text(text = "Daño en la devolución", color = RojoDanio, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            RevisionConObservaciones(it)
+        }
+    }
+}
+
+/**
+ * Estructura común de las hojas: velo violeta oscuro, hoja crema con barrita arriba, el
+ * [contenido] scrolleable y el botón amarillo "Entendido".
+ *
+ * También se cierra deslizándola hacia abajo, tocando el velo o con "atrás".
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HojaPrestamo(
+    onCerrar: () -> Unit,
+    contenido: @Composable ColumnScope.() -> Unit,
+) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
-    val tarjeta = alerta.tarjeta
 
     ModalBottomSheet(
         onDismissRequest = onCerrar,
@@ -99,34 +195,7 @@ fun AlertaPrestamoSheet(
                 .padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            when (alerta.tipo) {
-                TipoAlerta.OBSERVACION_ENTREGA -> Encabezado(
-                    icono = Icons.Filled.Info,
-                    color = AmbarObservacion,
-                    titulo = "Observación al entregar",
-                    subtitulo = "Estado del equipo registrado al momento del préstamo",
-                )
-                TipoAlerta.DANIO_DEVOLUCION -> Encabezado(
-                    icono = Icons.Filled.Warning,
-                    color = RojoDanio,
-                    titulo = "Daño en la devolución",
-                    subtitulo = "Resultado de la revisión al devolver el equipo",
-                )
-            }
-
-            DatosPrestamo(tarjeta)
-
-            when (alerta.tipo) {
-                TipoAlerta.OBSERVACION_ENTREGA -> tarjeta.observacionEntrega?.let {
-                    CuadroTexto(titulo = "Observaciones al entregar", texto = it)
-                }
-                TipoAlerta.DANIO_DEVOLUCION -> tarjeta.danioDevolucion?.let { revision ->
-                    ChecksRevision(revision)
-                    revision.observaciones?.let {
-                        CuadroTexto(titulo = "Observaciones de la devolución", texto = it)
-                    }
-                }
-            }
+            contenido()
 
             Button(
                 onClick = {
@@ -172,15 +241,15 @@ private fun Encabezado(icono: ImageVector, color: Color, titulo: String, subtitu
 private fun DatosPrestamo(tarjeta: TarjetaHistorial) {
     TarjetaBlanca {
         FilaDato("Alumno", tarjeta.nombreAlumno)
-        HorizontalDivider(color = IenPurple.copy(alpha = 0.08f))
+        Divisor()
         FilaDato("Computadora", tarjeta.codigoComputadora)
-        HorizontalDivider(color = IenPurple.copy(alpha = 0.08f))
+        Divisor()
         FilaDato("Fecha", "${tarjeta.fechaPrestamo} · ${tarjeta.horaPrestamo} hs")
     }
 }
 
 @Composable
-private fun FilaDato(etiqueta: String, valor: String) {
+private fun FilaDato(etiqueta: String, valor: String, colorValor: Color = IenPurple) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -188,7 +257,21 @@ private fun FilaDato(etiqueta: String, valor: String) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(text = etiqueta, color = IenGreyText, fontSize = 13.sp, modifier = Modifier.weight(1f))
-        Text(text = valor, color = IenPurple, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(text = valor, color = colorValor, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun Divisor() {
+    HorizontalDivider(color = IenPurple.copy(alpha = 0.08f))
+}
+
+/** Los checks de la revisión y, si se cargaron, las observaciones de la devolución. */
+@Composable
+private fun RevisionConObservaciones(revision: RevisionDevolucion) {
+    ChecksRevision(revision)
+    revision.observaciones?.let {
+        CuadroTexto(titulo = "Observaciones de la devolución", texto = it)
     }
 }
 
@@ -197,9 +280,9 @@ private fun FilaDato(etiqueta: String, valor: String) {
 private fun ChecksRevision(revision: RevisionDevolucion) {
     TarjetaBlanca {
         FilaCheck("Enciende correctamente", ok = revision.enciende, textoProblema = "FALLA")
-        HorizontalDivider(color = IenPurple.copy(alpha = 0.08f))
+        Divisor()
         FilaCheck("Pantalla en buen estado", ok = revision.pantallaOk, textoProblema = "FALLA")
-        HorizontalDivider(color = IenPurple.copy(alpha = 0.08f))
+        Divisor()
         FilaCheck("Cargador incluido", ok = revision.cargador, textoProblema = "FALTA")
     }
 }

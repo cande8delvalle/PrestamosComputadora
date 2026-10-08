@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ien.prestamoscomputadoras.ui.components.AlertaPrestamoSheet
+import com.ien.prestamoscomputadoras.ui.components.DetallePrestamoSheet
 import com.ien.prestamoscomputadoras.ui.components.AmbarObservacion
 import com.ien.prestamoscomputadoras.ui.components.BackHeader
 import com.ien.prestamoscomputadoras.ui.components.RojoDanio
@@ -83,12 +84,16 @@ fun HistorialPrestamosScreen(
         uiState = viewModel.uiState,
         onFiltroSeleccionado = viewModel::onFiltroSeleccionado,
         onAlertaClick = viewModel::onAlertaClick,
+        onTarjetaClick = viewModel::onTarjetaClick,
         onVolverClick = onVolverClick,
         modifier = modifier,
     )
 
     viewModel.uiState.alertaAbierta?.let { alerta ->
         AlertaPrestamoSheet(alerta = alerta, onCerrar = viewModel::onCerrarAlerta)
+    }
+    viewModel.uiState.detalleAbierto?.let { tarjeta ->
+        DetallePrestamoSheet(tarjeta = tarjeta, onCerrar = viewModel::onCerrarDetalle)
     }
 }
 
@@ -97,6 +102,7 @@ private fun HistorialPrestamosContent(
     uiState: HistorialPrestamosUiState,
     onFiltroSeleccionado: (FiltroHistorial) -> Unit,
     onAlertaClick: (TarjetaHistorial, TipoAlerta) -> Unit,
+    onTarjetaClick: (TarjetaHistorial) -> Unit,
     onVolverClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -170,7 +176,11 @@ private fun HistorialPrestamosContent(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(tarjetas, key = { it.idPrestamo }) { tarjeta ->
-                    TarjetaPrestamo(tarjeta, onAlertaClick = { tipo -> onAlertaClick(tarjeta, tipo) })
+                    TarjetaPrestamo(
+                        tarjeta,
+                        onClick = { onTarjetaClick(tarjeta) },
+                        onAlertaClick = { tipo -> onAlertaClick(tarjeta, tipo) },
+                    )
                 }
             }
         }
@@ -197,8 +207,14 @@ private fun FiltroChip(texto: String, seleccionado: Boolean, onClick: () -> Unit
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TarjetaPrestamo(tarjeta: TarjetaHistorial, onAlertaClick: (TipoAlerta) -> Unit) {
+private fun TarjetaPrestamo(
+    tarjeta: TarjetaHistorial,
+    /** Toque en la tarjeta: detalle completo. Los chips tienen su propio click (su alerta). */
+    onClick: () -> Unit,
+    onAlertaClick: (TipoAlerta) -> Unit,
+) {
     Card(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -370,6 +386,7 @@ private fun HistorialPrestamosPreview() {
             ),
             onFiltroSeleccionado = {},
             onAlertaClick = { _, _ -> },
+            onTarjetaClick = {},
             onVolverClick = {},
         )
     }

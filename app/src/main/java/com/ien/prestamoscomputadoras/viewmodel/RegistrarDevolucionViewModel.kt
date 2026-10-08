@@ -120,15 +120,15 @@ class RegistrarDevolucionViewModel(
     /**
      * Guarda la revisión del equipo y marca el préstamo como DEVUELTO, las dos cosas con la
      * fecha/hora actual y en una sola transacción. Queda registrado que la recibió el
-     * administrador de la sesión actual. Si sale bien, muestra el modal de éxito.
+     * usuario de la sesión actual. Si sale bien, muestra el modal de éxito.
      */
     fun onConfirmarClick() {
         val s = uiState
         val prestamo = s.prestamoEncontrado
         if (s.isLoading || prestamo == null) return
 
-        val administradorId = SesionActual.administradorId
-        if (administradorId == null) {
+        val usuarioId = SesionActual.usuarioId
+        if (usuarioId == null) {
             uiState = s.copy(errorConfirmacion = ERROR_SIN_SESION)
             return
         }
@@ -143,7 +143,7 @@ class RegistrarDevolucionViewModel(
                     cargador = s.incluyeCargador,
                     observaciones = s.observaciones.trim().ifEmpty { null },
                     fecha = ahora(),
-                    idAdministradorDevolucion = administradorId,
+                    idUsuarioDevolucion = usuarioId,
                 )
                 uiState = uiState.copy(mostrarModalExito = true)
             } catch (e: PrestamoYaDevueltoException) {

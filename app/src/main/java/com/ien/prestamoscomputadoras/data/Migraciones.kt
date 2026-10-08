@@ -53,7 +53,8 @@ val MIGRACION_4_5 = object : Migration(4, 5) {
                 "ON `administrador` (`nombre_usuario`)",
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_administrador_id_rol` ON `administrador` (`id_rol`)")
-        crearTriggersUnSoloAdmin(db)
+        // Los triggers de "un solo Admin" los crea MIGRACION_6_7 sobre la tabla usuario. Room
+        // siempre migra hasta la última versión, así que esta migración nunca corre sola.
     }
 }
 
@@ -107,6 +108,79 @@ val MIGRACION_5_6 = object : Migration(5, 6) {
     }
 }
 
+/**
+ * v6 -> v7: la tabla `administrador` pasa a llamarse `usuario` (PK `id_usuario`) y en `prestamo`
+ * las FK pasan a `id_usuario_prestamo` e `id_usuario_devolucion`. Conserva todos los datos.
+ *
+ * No se usa ALTER TABLE ... RENAME sobre administrador: en SQLite viejos (Android < 11) no
+ * actualiza las referencias de las FK ni de los triggers. Se recrean las dos tablas, igual que en
+ * v5 y v6, con el SQL exacto que genera Room. Room corre las migraciones con las FK desactivadas,
+ * así que se puede borrar administrador antes que prestamo.
+ */
+val MIGRACION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `usuario` (`id_usuario` INTEGER PRIMARY KEY " +
+                "AUTOINCREMENT NOT NULL, `nombre` TEXT NOT NULL, `apellido` TEXT NOT NULL, " +
+                "`nombre_usuario` TEXT NOT NULL, `dni` TEXT NOT NULL, `email` TEXT NOT NULL, " +
+                "`contrasena_hash` TEXT NOT NULL, `id_rol` INTEGER NOT NULL, FOREIGN KEY(`id_rol`) " +
+                "REFERENCES `rol`(`id_rol`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        )
+        db.execSQL(
+            "INSERT INTO `usuario` (`id_usuario`, `nombre`, `apellido`, `nombre_usuario`, `dni`, " +
+                "`email`, `contrasena_hash`, `id_rol`) " +
+                "SELECT `id_administrador`, `nombre`, `apellido`, `nombre_usuario`, `dni`, `email`, " +
+                "`contrasena_hash`, `id_rol` FROM `administrador`",
+        )
+        // Al borrar administrador se borran también sus índices y sus triggers.
+        db.execSQL("DROP TABLE `administrador`")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_usuario_email` ON `usuario` (`email`)")
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `index_usuario_nombre_usuario` ON `usuario` (`nombre_usuario`)",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_usuario_id_rol` ON `usuario` (`id_rol`)")
+        crearTriggersUnSoloAdmin(db)
+
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `prestamo_nueva` (`id_prestamo` INTEGER PRIMARY KEY " +
+                "AUTOINCREMENT NOT NULL, `id_alumno` INTEGER NOT NULL, `id_computadora` INTEGER NOT NULL, " +
+                "`id_usuario_prestamo` INTEGER NOT NULL, `fecha_prestamo` INTEGER NOT NULL, " +
+                "`fecha_devolucion` INTEGER, `id_usuario_devolucion` INTEGER, " +
+                "`estado` TEXT NOT NULL, `observaciones_iniciales` TEXT, " +
+                "FOREIGN KEY(`id_alumno`) REFERENCES `alumno`(`id_alumno`) " +
+                "ON UPDATE NO ACTION ON DELETE RESTRICT , " +
+                "FOREIGN KEY(`id_computadora`) REFERENCES `computadora`(`id_computadora`) " +
+                "ON UPDATE NO ACTION ON DELETE RESTRICT , " +
+                "FOREIGN KEY(`id_usuario_prestamo`) REFERENCES `usuario`(`id_usuario`) " +
+                "ON UPDATE NO ACTION ON DELETE RESTRICT , " +
+                "FOREIGN KEY(`id_usuario_devolucion`) REFERENCES `usuario`(`id_usuario`) " +
+                "ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        )
+        db.execSQL(
+            "INSERT INTO `prestamo_nueva` (`id_prestamo`, `id_alumno`, `id_computadora`, " +
+                "`id_usuario_prestamo`, `fecha_prestamo`, `fecha_devolucion`, " +
+                "`id_usuario_devolucion`, `estado`, `observaciones_iniciales`) " +
+                "SELECT `id_prestamo`, `id_alumno`, `id_computadora`, `id_administrador_prestamo`, " +
+                "`fecha_prestamo`, `fecha_devolucion`, `id_administrador_devolucion`, `estado`, " +
+                "`observaciones_iniciales` FROM `prestamo`",
+        )
+        db.execSQL("DROP TABLE `prestamo`")
+        db.execSQL("ALTER TABLE `prestamo_nueva` RENAME TO `prestamo`")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_prestamo_id_alumno` ON `prestamo` (`id_alumno`)")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_prestamo_id_computadora` ON `prestamo` (`id_computadora`)",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_prestamo_id_usuario_prestamo` " +
+                "ON `prestamo` (`id_usuario_prestamo`)",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_prestamo_id_usuario_devolucion` " +
+                "ON `prestamo` (`id_usuario_devolucion`)",
+        )
+    }
+}
+
 /** En una instalación nueva, crea los roles y los permisos iniciales junto con la base. */
 val CALLBACK_DATOS_INICIALES = object : RoomDatabase.Callback() {
     override fun onCreate(db: SupportSQLiteDatabase) {
@@ -122,15 +196,15 @@ val CALLBACK_DATOS_INICIALES = object : RoomDatabase.Callback() {
  */
 private fun crearTriggersUnSoloAdmin(db: SupportSQLiteDatabase) {
     db.execSQL(
-        "CREATE TRIGGER IF NOT EXISTS `un_solo_admin_insert` BEFORE INSERT ON `administrador` " +
-            "WHEN NEW.`id_rol` = ${Rol.ID_ADMIN} AND EXISTS(SELECT 1 FROM `administrador` " +
+        "CREATE TRIGGER IF NOT EXISTS `un_solo_admin_insert` BEFORE INSERT ON `usuario` " +
+            "WHEN NEW.`id_rol` = ${Rol.ID_ADMIN} AND EXISTS(SELECT 1 FROM `usuario` " +
             "WHERE `id_rol` = ${Rol.ID_ADMIN}) " +
             "BEGIN SELECT RAISE(ABORT, 'Solo puede existir un Admin'); END",
     )
     db.execSQL(
-        "CREATE TRIGGER IF NOT EXISTS `un_solo_admin_update` BEFORE UPDATE OF `id_rol` ON `administrador` " +
-            "WHEN NEW.`id_rol` = ${Rol.ID_ADMIN} AND EXISTS(SELECT 1 FROM `administrador` " +
-            "WHERE `id_rol` = ${Rol.ID_ADMIN} AND `id_administrador` <> NEW.`id_administrador`) " +
+        "CREATE TRIGGER IF NOT EXISTS `un_solo_admin_update` BEFORE UPDATE OF `id_rol` ON `usuario` " +
+            "WHEN NEW.`id_rol` = ${Rol.ID_ADMIN} AND EXISTS(SELECT 1 FROM `usuario` " +
+            "WHERE `id_rol` = ${Rol.ID_ADMIN} AND `id_usuario` <> NEW.`id_usuario`) " +
             "BEGIN SELECT RAISE(ABORT, 'Solo puede existir un Admin'); END",
     )
 }

@@ -26,12 +26,12 @@ interface PrestamoDao {
      */
     @Query(
         "UPDATE prestamo SET fecha_devolucion = :fechaDevolucion, estado = 'DEVUELTO', " +
-            "id_administrador_devolucion = :idAdministradorDevolucion " +
+            "id_usuario_devolucion = :idUsuarioDevolucion " +
             "WHERE id_prestamo = :idPrestamo AND estado = 'ACTIVO'",
     )
     suspend fun actualizarDevolucion(
         idPrestamo: Long,
         fechaDevolucion: Long,
-        idAdministradorDevolucion: Long,
+        idUsuarioDevolucion: Long,
     ): Int
 }

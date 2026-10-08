@@ -1,14 +1,14 @@
 package com.ien.prestamoscomputadoras.viewmodel
 
-import com.ien.prestamoscomputadoras.data.dao.AdministradorDao
+import com.ien.prestamoscomputadoras.data.dao.UsuarioDao
 import com.ien.prestamoscomputadoras.data.dao.AlumnoDao
 import com.ien.prestamoscomputadoras.data.dao.ComputadoraDao
 import com.ien.prestamoscomputadoras.data.dao.EstadoComputadoraDao
 import com.ien.prestamoscomputadoras.data.dao.HomeDao
-import com.ien.prestamoscomputadoras.data.dao.MovimientoReciente
+import com.ien.prestamoscomputadoras.data.dao.PrestamoHistorial
 import com.ien.prestamoscomputadoras.data.dao.RolDao
 import com.ien.prestamoscomputadoras.data.dao.PrestamoDao
-import com.ien.prestamoscomputadoras.data.entity.Administrador
+import com.ien.prestamoscomputadoras.data.entity.Usuario
 import com.ien.prestamoscomputadoras.data.entity.Alumno
 import com.ien.prestamoscomputadoras.data.entity.Computadora
 import com.ien.prestamoscomputadoras.data.entity.EstadoComputadora
@@ -38,28 +38,28 @@ class MainDispatcherRule : TestWatcher() {
     override fun finished(description: Description) = Dispatchers.resetMain()
 }
 
-class FakeAdministradorDao : AdministradorDao {
-    val administradores = mutableListOf<Administrador>()
+class FakeUsuarioDao : UsuarioDao {
+    val usuarios = mutableListOf<Usuario>()
 
-    override suspend fun insertar(administrador: Administrador): Long {
+    override suspend fun insertar(usuario: Usuario): Long {
         // Igual que el trigger `un_solo_admin_insert` de la base real.
-        check(administrador.idRol != Rol.ID_ADMIN || !existeAdmin()) { "Solo puede existir un Admin" }
-        val id = administradores.size + 1L
-        administradores += administrador.copy(idAdministrador = id)
+        check(usuario.idRol != Rol.ID_ADMIN || !existeAdmin()) { "Solo puede existir un Admin" }
+        val id = usuarios.size + 1L
+        usuarios += usuario.copy(idUsuario = id)
         return id
     }
 
-    override suspend fun buscarPorEmail(email: String) = administradores.firstOrNull { it.email == email }
+    override suspend fun buscarPorEmail(email: String) = usuarios.firstOrNull { it.email == email }
 
     override suspend fun buscarPorNombreUsuario(nombreUsuario: String) =
-        administradores.firstOrNull { it.nombreUsuario.equals(nombreUsuario, ignoreCase = true) }
+        usuarios.firstOrNull { it.nombreUsuario.equals(nombreUsuario, ignoreCase = true) }
 
     override suspend fun existeNombreUsuario(nombreUsuario: String) =
         buscarPorNombreUsuario(nombreUsuario) != null
 
     override suspend fun existeEmail(email: String) = buscarPorEmail(email) != null
 
-    override suspend fun existeAdmin() = administradores.any { it.idRol == Rol.ID_ADMIN }
+    override suspend fun existeAdmin() = usuarios.any { it.idRol == Rol.ID_ADMIN }
 }
 
 class FakeAlumnoDao(val alumnos: MutableList<Alumno> = mutableListOf()) : AlumnoDao {
@@ -107,14 +107,14 @@ class FakePrestamoYComputadoraDao(
     override suspend fun actualizarDevolucion(
         idPrestamo: Long,
         fechaDevolucion: Long,
-        idAdministradorDevolucion: Long,
+        idUsuarioDevolucion: Long,
     ): Int {
         val i = prestamos.indexOfFirst { it.idPrestamo == idPrestamo && it.estado == Prestamo.ESTADO_ACTIVO }
         if (i == -1) return 0
         prestamos[i] = prestamos[i].copy(
             fechaDevolucion = fechaDevolucion,
             estado = Prestamo.ESTADO_DEVUELTO,
-            idAdministradorDevolucion = idAdministradorDevolucion,
+            idUsuarioDevolucion = idUsuarioDevolucion,
         )
         return 1
     }
@@ -141,7 +141,8 @@ class FakeEstadoComputadoraDao : EstadoComputadoraDao {
 
 /**
  * Calcula igual que las queries reales a partir de una lista de préstamos observable.
- * Todos los préstamos son del alumno "Juan Pérez" y la computadora se llama "PC-<id>".
+ * Todos los préstamos son del alumno "Juan Pérez" (DNI 46111222) y la computadora se llama
+ * "PC-<id>". Los entrega "Ana López" y los recibe "Marta Ruiz".
  */
 class FakeHomeDao : HomeDao {
     val prestamos = MutableStateFlow<List<Prestamo>>(emptyList())
@@ -156,40 +157,41 @@ class FakeHomeDao : HomeDao {
             }
         }
 
-    override fun movimientosRecientes(limite: Int): Flow<List<MovimientoReciente>> =
+    override fun prestamosRecientes(limite: Int): Flow<List<PrestamoHistorial>> =
         prestamos.map { lista ->
-            val entregas = lista.map { movimiento(it, MovimientoReciente.TIPO_PRESTAMO, it.fechaPrestamo) }
-            val devoluciones = lista.filter { it.estado == Prestamo.ESTADO_DEVUELTO }.map {
-                movimiento(it, MovimientoReciente.TIPO_DEVOLUCION, it.fechaDevolucion!!)
-            }
-            (entregas + devoluciones)
+            lista
                 .sortedWith(
-                    compareByDescending<MovimientoReciente> { it.fechaMovimiento }
-                        .thenBy { it.tipo }
+                    compareByDescending<Prestamo> { it.fechaDevolucion ?: it.fechaPrestamo }
                         .thenByDescending { it.idPrestamo },
                 )
                 .take(limite)
+                .map {
+                    val devuelto = it.idUsuarioDevolucion != null
+                    PrestamoHistorial(
+                        prestamo = it,
+                        revision = null,
+                        alumnoNombre = "Juan",
+                        alumnoApellido = "Pérez",
+                        alumnoDni = "46111222",
+                        codigoComputadora = "PC-${it.idComputadora}",
+                        usuarioPrestamoNombre = "Ana",
+                        usuarioPrestamoApellido = "López",
+                        usuarioDevolucionNombre = if (devuelto) "Marta" else null,
+                        usuarioDevolucionApellido = if (devuelto) "Ruiz" else null,
+                    )
+                }
         }
-
-    private fun movimiento(p: Prestamo, tipo: String, fecha: Long) = MovimientoReciente(
-        idPrestamo = p.idPrestamo,
-        alumnoNombre = "Juan",
-        alumnoApellido = "Pérez",
-        codigoComputadora = "PC-${p.idComputadora}",
-        tipo = tipo,
-        fechaMovimiento = fecha,
-    )
 }
 
-/** Rol de cada administrador y permisos por rol, observables como en Room. */
+/** Rol de cada usuario y permisos por rol, observables como en Room. */
 class FakeRolDao(
-    rolesPorAdministrador: Map<Long, Long> = emptyMap(),
+    rolesPorUsuario: Map<Long, Long> = emptyMap(),
     permisosIniciales: Set<RolPermiso> = emptySet(),
 ) : RolDao {
-    val roles = MutableStateFlow(rolesPorAdministrador)
+    val roles = MutableStateFlow(rolesPorUsuario)
     val permisos = MutableStateFlow(permisosIniciales)
 
-    override fun rolDeAdministrador(idAdministrador: Long): Flow<Long?> = roles.map { it[idAdministrador] }
+    override fun rolDeUsuario(idUsuario: Long): Flow<Long?> = roles.map { it[idUsuario] }
 
     override fun permisosDeRol(idRol: Long): Flow<List<String>> =
         permisos.map { set -> set.filter { it.idRol == idRol }.map { it.permiso } }

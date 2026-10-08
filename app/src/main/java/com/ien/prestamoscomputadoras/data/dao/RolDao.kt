@@ -10,9 +10,9 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface RolDao {
 
-    /** Rol del administrador, o `null` si no existe. Se vuelve a emitir si cambia. */
-    @Query("SELECT id_rol FROM administrador WHERE id_administrador = :idAdministrador")
-    fun rolDeAdministrador(idAdministrador: Long): Flow<Long?>
+    /** Rol del usuario, o `null` si no existe. Se vuelve a emitir si cambia. */
+    @Query("SELECT id_rol FROM usuario WHERE id_usuario = :idUsuario")
+    fun rolDeUsuario(idUsuario: Long): Flow<Long?>
 
     /** Nombres de los permisos habilitados para el rol. Se vuelve a emitir si cambian. */
     @Query("SELECT permiso FROM rol_permiso WHERE id_rol = :idRol")

@@ -63,10 +63,10 @@ data class TarjetaHistorial(
      * chip "Daño en la devolución" (ver [tieneDanioEnDevolucion]).
      */
     val danioDevolucion: RevisionDevolucion?,
-    /** Administrador que entregó la computadora (no el de la sesión actual). */
+    /** Usuario que entregó la computadora (no el de la sesión actual). */
     val prestadoPor: String,
     /**
-     * Administrador que recibió la devolución. `null` si el préstamo sigue activo (o si se
+     * Usuario que recibió la devolución. `null` si el préstamo sigue activo (o si se
      * devolvió antes de que se guardara este dato).
      */
     val devueltoPor: String?,
@@ -84,6 +84,8 @@ data class HistorialPrestamosUiState(
     val inicioHoy: Long = 0L,
     /** Modal de alerta abierto, o `null` si no hay ninguno. */
     val alertaAbierta: AlertaAbierta? = null,
+    /** Tarjeta con el modal de detalle abierto, o `null` si no hay ninguno. */
+    val detalleAbierto: TarjetaHistorial? = null,
 ) {
     /** Tarjetas del filtro activo. Su tamaño es el contador "X Registros". */
     val tarjetas: List<TarjetaHistorial>
@@ -131,6 +133,15 @@ class HistorialPrestamosViewModel(
         uiState = uiState.copy(alertaAbierta = null)
     }
 
+    /** Toque en la tarjeta (fuera de los chips): abre el detalle completo del préstamo. */
+    fun onTarjetaClick(tarjeta: TarjetaHistorial) {
+        uiState = uiState.copy(detalleAbierto = tarjeta)
+    }
+
+    fun onCerrarDetalle() {
+        uiState = uiState.copy(detalleAbierto = null)
+    }
+
     companion object {
         /** Crea el ViewModel con su repositorio (Room) a partir del Application. */
         val Factory: ViewModelProvider.Factory = viewModelFactory {
@@ -170,7 +181,8 @@ internal fun rangoSemana(ahoraMs: Long): RangoSemana {
 private fun formatoLocal(patron: String) =
     SimpleDateFormat(patron, Locale.US).apply { timeZone = TimeZone.getDefault() }
 
-private fun PrestamoHistorial.aTarjeta(): TarjetaHistorial {
+/** Arma la tarjeta (y el detalle) de un préstamo. La usan el Historial y "Actividad reciente". */
+internal fun PrestamoHistorial.aTarjeta(): TarjetaHistorial {
     val formatoFecha = formatoLocal("dd/MM/yyyy")
     val formatoHora = formatoLocal("HH:mm")
     val devuelto = prestamo.estado == Prestamo.ESTADO_DEVUELTO
@@ -198,10 +210,10 @@ private fun PrestamoHistorial.aTarjeta(): TarjetaHistorial {
                     observaciones = it.observaciones?.trim()?.ifEmpty { null },
                 )
             },
-        prestadoPor = "$adminPrestamoNombre $adminPrestamoApellido",
-        devueltoPor = adminDevolucionNombre
+        prestadoPor = "$usuarioPrestamoNombre $usuarioPrestamoApellido",
+        devueltoPor = usuarioDevolucionNombre
             ?.takeIf { devuelto }
-            ?.let { "$it ${adminDevolucionApellido.orEmpty()}".trim() },
+            ?.let { "$it ${usuarioDevolucionApellido.orEmpty()}".trim() },
         fechaPrestamoMs = prestamo.fechaPrestamo,
     )
 }

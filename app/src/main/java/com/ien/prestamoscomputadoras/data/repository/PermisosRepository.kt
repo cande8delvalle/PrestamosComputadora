@@ -28,12 +28,12 @@ data class AccesoUsuario(
 class PermisosRepository(private val rolDao: RolDao) {
 
     /**
-     * Acceso del administrador [idAdministrador], que se vuelve a emitir si cambian su rol o los
+     * Acceso del usuario [idUsuario], que se vuelve a emitir si cambian su rol o los
      * permisos de su rol. El Admin tiene siempre todos los permisos (no se leen de la base).
      */
-    fun accesoDe(idAdministrador: Long?): Flow<AccesoUsuario> {
-        if (idAdministrador == null) return flowOf(AccesoUsuario.SIN_ACCESO)
-        return rolDao.rolDeAdministrador(idAdministrador).flatMapLatest { idRol ->
+    fun accesoDe(idUsuario: Long?): Flow<AccesoUsuario> {
+        if (idUsuario == null) return flowOf(AccesoUsuario.SIN_ACCESO)
+        return rolDao.rolDeUsuario(idUsuario).flatMapLatest { idRol ->
             when (idRol) {
                 null -> flowOf(AccesoUsuario.SIN_ACCESO)
                 Rol.ID_ADMIN -> flowOf(AccesoUsuario(esAdmin = true, permisos = Permiso.entries.toSet()))

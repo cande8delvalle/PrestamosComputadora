@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ien.prestamoscomputadoras.data.Permiso
+import com.ien.prestamoscomputadoras.ui.components.DetallePrestamoSheet
 import com.ien.prestamoscomputadoras.ui.components.QuickActionCard
 import com.ien.prestamoscomputadoras.ui.components.RecentActivityItem
 import com.ien.prestamoscomputadoras.ui.components.StatCard
@@ -46,6 +47,7 @@ import com.ien.prestamoscomputadoras.ui.theme.IenGreyText
 import com.ien.prestamoscomputadoras.ui.theme.IenPurple
 import com.ien.prestamoscomputadoras.ui.theme.IenPurpleDark
 import com.ien.prestamoscomputadoras.ui.theme.PrestamosComputadorasTheme
+import com.ien.prestamoscomputadoras.viewmodel.ActividadReciente
 import com.ien.prestamoscomputadoras.viewmodel.HomeUiState
 import com.ien.prestamoscomputadoras.viewmodel.HomeViewModel
 
@@ -86,13 +88,20 @@ fun HomeScreen(
         onHistorialClick = onHistorialClick,
         onRolesPermisosClick = onRolesPermisosClick,
         onLogoutClick = onLogoutClick,
+        onActividadClick = viewModel::onActividadClick,
         modifier = modifier,
     )
+
+    // Mismo detalle que el Historial, con los datos que Home ya tiene cargados.
+    uiState.detalleAbierto?.let { tarjeta ->
+        DetallePrestamoSheet(tarjeta = tarjeta, onCerrar = viewModel::onCerrarDetalle)
+    }
 }
 
 @Composable
 private fun HomeContent(
     uiState: HomeUiState,
+    onActividadClick: (ActividadReciente) -> Unit,
     onRegistrarAlumnoClick: () -> Unit,
     onRegistrarComputadoraClick: () -> Unit,
     onNuevoPrestamoClick: () -> Unit,
@@ -214,7 +223,7 @@ private fun HomeContent(
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     uiState.actividadReciente.forEach { actividad ->
-                        RecentActivityItem(actividad)
+                        RecentActivityItem(actividad, onClick = { onActividadClick(actividad) })
                     }
                 }
             }
@@ -283,6 +292,7 @@ private fun HomeScreenPreview() {
     PrestamosComputadorasTheme {
         HomeContent(
             uiState = HomeViewModel.datosDePrueba(),
+            onActividadClick = {},
             onRegistrarAlumnoClick = {},
             onRegistrarComputadoraClick = {},
             onNuevoPrestamoClick = {},

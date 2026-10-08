@@ -9,8 +9,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.ien.prestamoscomputadoras.data.AppDatabase
-import com.ien.prestamoscomputadoras.data.entity.Administrador
-import com.ien.prestamoscomputadoras.data.repository.AdministradorRepository
+import com.ien.prestamoscomputadoras.data.entity.Usuario
+import com.ien.prestamoscomputadoras.data.repository.UsuarioRepository
 import com.ien.prestamoscomputadoras.util.hashPassword
 import kotlinx.coroutines.launch
 
@@ -69,10 +69,10 @@ data class RegisterUiState(
 /**
  * ViewModel de [com.ien.prestamoscomputadoras.ui.screens.RegisterScreen].
  *
- * Mantiene el estado del formulario, lo valida y guarda el administrador en Room.
+ * Mantiene el estado del formulario, lo valida y guarda el usuario en Room.
  */
 class RegisterViewModel(
-    private val administradorRepository: AdministradorRepository,
+    private val usuarioRepository: UsuarioRepository,
 ) : ViewModel() {
 
     var uiState by mutableStateOf(RegisterUiState())
@@ -152,7 +152,7 @@ class RegisterViewModel(
      *    y de coincidencia solo corren sobre campos con contenido.
      * 5. Se evalúan TODOS los campos y se muestran todos los errores a la vez.
      * 6. Si todo pasa, se verifica que el nombre de usuario y el correo no estén en uso,
-     *    se guarda el administrador (con la contraseña hasheada) y se muestra el modal.
+     *    se guarda el usuario (con la contraseña hasheada) y se muestra el modal.
      */
     fun onCrearCuentaClick() {
         val s = uiState
@@ -197,19 +197,19 @@ class RegisterViewModel(
         viewModelScope.launch {
             try {
                 val erroresEnUso = RegisterFieldErrors(
-                    nombreUsuario = if (administradorRepository.existeNombreUsuario(nombreUsuario)) {
+                    nombreUsuario = if (usuarioRepository.existeNombreUsuario(nombreUsuario)) {
                         ERROR_NOMBRE_USUARIO_EN_USO
                     } else {
                         null
                     },
-                    correo = if (administradorRepository.existeEmail(correo)) ERROR_CORREO_EN_USO else null,
+                    correo = if (usuarioRepository.existeEmail(correo)) ERROR_CORREO_EN_USO else null,
                 )
                 if (erroresEnUso.hayAlguno) {
                     uiState = uiState.copy(errores = erroresEnUso)
                     return@launch
                 }
-                administradorRepository.registrar(
-                    Administrador(
+                usuarioRepository.registrar(
+                    Usuario(
                         nombre = s.nombre.trim(),
                         apellido = s.apellido.trim(),
                         nombreUsuario = nombreUsuario,
@@ -238,7 +238,7 @@ class RegisterViewModel(
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = checkNotNull(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
-                RegisterViewModel(AdministradorRepository(AppDatabase.getInstance(app).administradorDao()))
+                RegisterViewModel(UsuarioRepository(AppDatabase.getInstance(app).usuarioDao()))
             }
         }
     }

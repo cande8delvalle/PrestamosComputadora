@@ -32,22 +32,25 @@ import com.ien.prestamoscomputadoras.ui.theme.IenGreyText
 import com.ien.prestamoscomputadoras.ui.theme.IenPurple
 import com.ien.prestamoscomputadoras.ui.theme.PrestamosComputadorasTheme
 import com.ien.prestamoscomputadoras.viewmodel.ActividadReciente
-import com.ien.prestamoscomputadoras.viewmodel.TipoMovimiento
+import com.ien.prestamoscomputadoras.viewmodel.EstadoPrestamo
+import com.ien.prestamoscomputadoras.viewmodel.HomeViewModel
 
 /** Verde de la etiqueta "DEVUELTO". Solo se usa acá, por eso no está en Color.kt. */
 private val VerdeDevuelto = Color(0xFF2E7D32)
 
 /**
  * Ítem de la lista "Actividad reciente": ícono de persona, nombre del alumno, código de PC +
- * hora y una etiqueta (pill) con el tipo de movimiento. No muestra quién lo gestionó: eso se ve
- * solo en el Historial.
+ * hora y una etiqueta (pill) con el estado actual del préstamo. Toda la tarjeta es tocable
+ * ([onClick]): abre el detalle del préstamo, el mismo que en el Historial.
  */
 @Composable
 fun RecentActivityItem(
     actividad: ActividadReciente,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
+        onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -93,16 +96,16 @@ fun RecentActivityItem(
 
             Spacer(Modifier.width(8.dp))
 
-            TipoPill(actividad.tipo)
+            EstadoPill(actividad.estado)
         }
     }
 }
 
 @Composable
-private fun TipoPill(tipo: TipoMovimiento) {
-    val (texto, fondo) = when (tipo) {
-        TipoMovimiento.PRESTAMO -> "PRESTADO" to IenPurple
-        TipoMovimiento.DEVOLUCION -> "DEVUELTO" to VerdeDevuelto
+private fun EstadoPill(estado: EstadoPrestamo) {
+    val (texto, fondo) = when (estado) {
+        EstadoPrestamo.ACTIVO -> "PRESTADO" to IenPurple
+        EstadoPrestamo.DEVUELTO -> "DEVUELTO" to VerdeDevuelto
     }
     Text(
         text = texto,
@@ -121,11 +124,13 @@ private fun RecentActivityItemPreview() {
     PrestamosComputadorasTheme {
         Column(Modifier.padding(16.dp)) {
             RecentActivityItem(
-                ActividadReciente("Juan Pérez", "PC-7", "08:30", TipoMovimiento.PRESTAMO),
+                HomeViewModel.actividadDePrueba("Juan Pérez", "PC-7", "08:30", devuelta = null),
+                onClick = {},
             )
             Spacer(Modifier.height(8.dp))
             RecentActivityItem(
-                ActividadReciente("María González", "PC-3", "08:15", TipoMovimiento.DEVOLUCION),
+                HomeViewModel.actividadDePrueba("María González", "PC-3", "07:40", devuelta = "08:15"),
+                onClick = {},
             )
         }
     }

@@ -9,6 +9,7 @@ import com.ien.prestamoscomputadoras.data.repository.PermisosRepository
 import java.util.Calendar
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -28,23 +29,29 @@ class HomeViewModelTest {
     // Miércoles 30/09/2026 a las 18:00.
     private val ahora = fecha(30, 18)
 
-    /** Lo entrega el administrador 1; si se devolvió, lo recibe el 2. */
+    /** Lo entrega el usuario 1; si se devolvió, lo recibe el 2. */
     private fun prestamo(id: Long, prestado: Long, devuelto: Long? = null) = Prestamo(
         idPrestamo = id,
         idAlumno = 1,
         idComputadora = id,
-        idAdministradorPrestamo = 1,
+        idUsuarioPrestamo = 1,
         fechaPrestamo = prestado,
         fechaDevolucion = devuelto,
-        idAdministradorDevolucion = devuelto?.let { 2 },
+        idUsuarioDevolucion = devuelto?.let { 2 },
         estado = if (devuelto != null) Prestamo.ESTADO_DEVUELTO else Prestamo.ESTADO_ACTIVO,
     )
 
     private fun nuevoVm(
         dao: FakeHomeDao = FakeHomeDao(),
         rolDao: FakeRolDao = FakeRolDao(),
-        idAdministrador: Long? = null,
-    ) = HomeViewModel(HomeRepository(dao), PermisosRepository(rolDao), idAdministrador, ahora = { ahora })
+        idUsuario: Long? = null,
+    ) = HomeViewModel(HomeRepository(dao), PermisosRepository(rolDao), idUsuario, ahora = { ahora })
+
+    /** Lo que muestra cada ítem de "Actividad reciente". */
+    private data class Item(val alumno: String, val pc: String, val hora: String, val estado: EstadoPrestamo)
+
+    private fun HomeViewModel.items() =
+        uiState.value.actividadReciente.map { Item(it.nombreAlumno, it.codigoComputadora, it.hora, it.estado) }
 
     @Test
     fun sinPrestamos_todoEnCero() {
@@ -71,25 +78,54 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun actividadReciente_mezclaPrestamosYDevolucionesDelMasRecienteAlMasAntiguo() {
+    fun actividadReciente_unaFilaPorPrestamoConSuEstadoActual() {
         val dao = FakeHomeDao()
         dao.prestamos.value = listOf(
             prestamo(2, fecha(30, 8, 30)),
             prestamo(3, fecha(29, 9), devuelto = fecha(30, 10, 15)),
             prestamo(4, fecha(30, 9), devuelto = fecha(30, 17, 45)),
+            prestamo(5, fecha(30, 12)),
         )
         val vm = nuevoVm(dao)
 
+        // Ordena por lo último que pasó: la devolución si ya se devolvió, si no la entrega.
         assertEquals(
             listOf(
-                ActividadReciente("Juan Pérez", "PC-4", "17:45", TipoMovimiento.DEVOLUCION),
-                ActividadReciente("Juan Pérez", "PC-3", "10:15", TipoMovimiento.DEVOLUCION),
-                ActividadReciente("Juan Pérez", "PC-4", "09:00", TipoMovimiento.PRESTAMO),
-                ActividadReciente("Juan Pérez", "PC-2", "08:30", TipoMovimiento.PRESTAMO),
-                ActividadReciente("Juan Pérez", "PC-3", "09:00", TipoMovimiento.PRESTAMO),
+                Item("Juan Pérez", "PC-4", "17:45", EstadoPrestamo.DEVUELTO),
+                Item("Juan Pérez", "PC-5", "12:00", EstadoPrestamo.ACTIVO),
+                Item("Juan Pérez", "PC-3", "10:15", EstadoPrestamo.DEVUELTO),
+                Item("Juan Pérez", "PC-2", "08:30", EstadoPrestamo.ACTIVO),
             ),
-            vm.uiState.value.actividadReciente,
+            vm.items(),
         )
+    }
+
+    @Test
+    fun tocarActividad_abreElDetalleDeEsePrestamoYSeCierra() {
+        val dao = FakeHomeDao()
+        dao.prestamos.value = listOf(
+            prestamo(2, fecha(30, 8, 30)),
+            prestamo(3, fecha(29, 9), devuelto = fecha(30, 10, 15)),
+        )
+        val vm = nuevoVm(dao)
+        assertNull(vm.uiState.value.detalleAbierto)
+
+        val devuelto = vm.uiState.value.actividadReciente.single { it.codigoComputadora == "PC-3" }
+        vm.onActividadClick(devuelto)
+
+        // El mismo detalle que el Historial, armado con lo que Home ya tenía cargado.
+        val detalle = vm.uiState.value.detalleAbierto!!
+        assertEquals(3L, detalle.idPrestamo)
+        assertEquals("46.111.222", detalle.dniAlumno)
+        assertEquals("29/09/2026", detalle.fechaPrestamo)
+        assertEquals("09:00", detalle.horaPrestamo)
+        assertEquals("10:15", detalle.horaDevolucion)
+        assertEquals(EstadoPrestamo.DEVUELTO, detalle.estado)
+        assertEquals("Ana López", detalle.prestadoPor)
+        assertEquals("Marta Ruiz", detalle.devueltoPor)
+
+        vm.onCerrarDetalle()
+        assertNull(vm.uiState.value.detalleAbierto)
     }
 
     @Test
@@ -115,14 +151,11 @@ class HomeViewModelTest {
         assertEquals(1, vm.uiState.value.cantidadPrestados)
         assertEquals(1, vm.uiState.value.actividadReciente.size)
 
-        // Se devuelve: deja de estar activo y aparece la devolución arriba.
+        // Se devuelve: deja de estar activo y la misma fila pasa a DEVUELTO (no se duplica).
         dao.prestamos.value = listOf(prestamo(1, fecha(30, 9), devuelto = fecha(30, 12)))
         assertEquals(0, vm.uiState.value.cantidadPrestados)
         assertEquals(1, vm.uiState.value.cantidadDevueltosHoy)
-        assertEquals(
-            listOf(TipoMovimiento.DEVOLUCION, TipoMovimiento.PRESTAMO),
-            vm.uiState.value.actividadReciente.map { it.tipo },
-        )
+        assertEquals(listOf(Item("Juan Pérez", "PC-1", "12:00", EstadoPrestamo.DEVUELTO)), vm.items())
     }
 
     @Test
@@ -146,8 +179,8 @@ class HomeViewModelTest {
 
     @Test
     fun acceso_adminVeTodoYAdministracion() {
-        val rolDao = FakeRolDao(rolesPorAdministrador = mapOf(1L to Rol.ID_ADMIN))
-        val s = nuevoVm(rolDao = rolDao, idAdministrador = 1L).uiState.value
+        val rolDao = FakeRolDao(rolesPorUsuario = mapOf(1L to Rol.ID_ADMIN))
+        val s = nuevoVm(rolDao = rolDao, idUsuario = 1L).uiState.value
 
         assertTrue(s.acceso.esAdmin)
         assertEquals(Permiso.entries.toSet(), s.acceso.permisos)
@@ -156,10 +189,10 @@ class HomeViewModelTest {
     @Test
     fun acceso_personalSoloSusPermisosYSeActualiza() {
         val rolDao = FakeRolDao(
-            rolesPorAdministrador = mapOf(2L to Rol.ID_PERSONAL),
+            rolesPorUsuario = mapOf(2L to Rol.ID_PERSONAL),
             permisosIniciales = Permiso.inicialesPersonal.map { RolPermiso(Rol.ID_PERSONAL, it.name) }.toSet(),
         )
-        val vm = nuevoVm(rolDao = rolDao, idAdministrador = 2L)
+        val vm = nuevoVm(rolDao = rolDao, idUsuario = 2L)
 
         assertFalse(vm.uiState.value.acceso.esAdmin)
         assertEquals(Permiso.inicialesPersonal, vm.uiState.value.acceso.permisos)
@@ -174,10 +207,10 @@ class HomeViewModelTest {
     fun acceso_personalNuncaTieneGestionDePermisos() {
         // Aunque la base tuviera la fila (no debería), no se le otorga.
         val rolDao = FakeRolDao(
-            rolesPorAdministrador = mapOf(2L to Rol.ID_PERSONAL),
+            rolesPorUsuario = mapOf(2L to Rol.ID_PERSONAL),
             permisosIniciales = setOf(RolPermiso(Rol.ID_PERSONAL, Permiso.GESTION_PERMISOS.name)),
         )
-        val s = nuevoVm(rolDao = rolDao, idAdministrador = 2L).uiState.value
+        val s = nuevoVm(rolDao = rolDao, idUsuario = 2L).uiState.value
 
         assertFalse(s.acceso.esAdmin)
         assertFalse(s.acceso.puede(Permiso.GESTION_PERMISOS))

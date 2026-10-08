@@ -48,17 +48,17 @@ class HistorialPrestamosViewModelTest {
         fechaDevolucion: Long? = null,
         observacionesIniciales: String? = null,
         revision: EstadoComputadora? = null,
-        admin: Pair<String, String> = "Ana" to "López",
-        adminDevolucion: Pair<String, String>? = if (fechaDevolucion != null) "Marta" to "Ruiz" else null,
+        usuarioPrestamo: Pair<String, String> = "Ana" to "López",
+        usuarioDevolucion: Pair<String, String>? = if (fechaDevolucion != null) "Marta" to "Ruiz" else null,
     ) = PrestamoHistorial(
         prestamo = Prestamo(
             idPrestamo = id,
             idAlumno = 1,
             idComputadora = 7,
-            idAdministradorPrestamo = 1,
+            idUsuarioPrestamo = 1,
             fechaPrestamo = fechaPrestamo,
             fechaDevolucion = fechaDevolucion,
-            idAdministradorDevolucion = if (adminDevolucion != null) 2 else null,
+            idUsuarioDevolucion = if (usuarioDevolucion != null) 2 else null,
             estado = if (fechaDevolucion != null) Prestamo.ESTADO_DEVUELTO else Prestamo.ESTADO_ACTIVO,
             observacionesIniciales = observacionesIniciales,
         ),
@@ -67,10 +67,10 @@ class HistorialPrestamosViewModelTest {
         alumnoApellido = "Pérez",
         alumnoDni = "46111222",
         codigoComputadora = "PC-7",
-        adminPrestamoNombre = admin.first,
-        adminPrestamoApellido = admin.second,
-        adminDevolucionNombre = adminDevolucion?.first,
-        adminDevolucionApellido = adminDevolucion?.second,
+        usuarioPrestamoNombre = usuarioPrestamo.first,
+        usuarioPrestamoApellido = usuarioPrestamo.second,
+        usuarioDevolucionNombre = usuarioDevolucion?.first,
+        usuarioDevolucionApellido = usuarioDevolucion?.second,
     )
 
     private fun revision(idPrestamo: Long, cargador: Boolean = true, observaciones: String? = null) =
@@ -134,7 +134,7 @@ class HistorialPrestamosViewModelTest {
         val dao = FakeHistorialDao(
             listOf(
                 fila(1, fecha(30, 9, 30), fechaDevolucion = fecha(30, 10, 45), revision = revision(1)),
-                fila(2, fecha(30, 17), admin = "Carlos" to "Díaz"),
+                fila(2, fecha(30, 17), usuarioPrestamo = "Carlos" to "Díaz"),
             ),
         )
         val vm = HistorialPrestamosViewModel(HistorialRepository(dao), ahora = { ahora })
@@ -161,7 +161,7 @@ class HistorialPrestamosViewModelTest {
     fun tarjeta_devueltaAntesDeV6_sinDevueltoPor() {
         // Devuelta antes de que se guardara quién la recibió: solo se sabe quién la prestó.
         val dao = FakeHistorialDao(
-            listOf(fila(1, fecha(30, 9), fechaDevolucion = fecha(30, 10), adminDevolucion = null)),
+            listOf(fila(1, fecha(30, 9), fechaDevolucion = fecha(30, 10), usuarioDevolucion = null)),
         )
         val vm = HistorialPrestamosViewModel(HistorialRepository(dao), ahora = { ahora })
         val tarjeta = vm.uiState.tarjetas.single()
@@ -223,6 +223,20 @@ class HistorialPrestamosViewModelTest {
 
         vm.onCerrarAlerta()
         assertNull(vm.uiState.alertaAbierta)
+    }
+
+    @Test
+    fun tarjeta_abreYCierraElDetalleSinTocarLaAlerta() {
+        val dao = FakeHistorialDao(listOf(fila(1, fecha(30, 9), observacionesIniciales = "Rayón")))
+        val vm = HistorialPrestamosViewModel(HistorialRepository(dao), ahora = { ahora })
+        val tarjeta = vm.uiState.tarjetas.single()
+
+        vm.onTarjetaClick(tarjeta)
+        assertEquals(tarjeta, vm.uiState.detalleAbierto)
+        assertNull(vm.uiState.alertaAbierta)
+
+        vm.onCerrarDetalle()
+        assertNull(vm.uiState.detalleAbierto)
     }
 
     @Test

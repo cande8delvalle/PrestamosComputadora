@@ -1,29 +1,8 @@
 package com.ien.prestamoscomputadoras.data.dao
 
-import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
-
-/**
- * Un ítem de "Actividad reciente": una entrega o una devolución. Un préstamo ya devuelto
- * aporta dos movimientos, uno por cada cosa.
- */
-data class MovimientoReciente(
-    @ColumnInfo(name = "id_prestamo") val idPrestamo: Long,
-    @ColumnInfo(name = "alumno_nombre") val alumnoNombre: String,
-    @ColumnInfo(name = "alumno_apellido") val alumnoApellido: String,
-    @ColumnInfo(name = "codigo_computadora") val codigoComputadora: String,
-    /** [TIPO_PRESTAMO] o [TIPO_DEVOLUCION]. */
-    val tipo: String,
-    /** Epoch ms de la entrega o de la devolución, según [tipo]. */
-    @ColumnInfo(name = "fecha_movimiento") val fechaMovimiento: Long,
-) {
-    companion object {
-        const val TIPO_PRESTAMO = "PRESTAMO"
-        const val TIPO_DEVOLUCION = "DEVOLUCION"
-    }
-}
 
 /**
  * Datos de la pantalla de inicio. Devuelven [Flow]: Room vuelve a emitir cada vez que cambia
@@ -51,27 +30,14 @@ interface HomeDao {
     fun contarDevueltosEntre(desde: Long, hasta: Long): Flow<Int>
 
     /**
-     * Últimos [limite] movimientos, del más reciente al más antiguo: las entregas y las
-     * devoluciones, unidas con UNION ALL. Si una entrega y una devolución tienen la misma hora
-     * va primero la devolución ('DEVOLUCION' < 'PRESTAMO').
+     * Últimos [limite] préstamos, uno por fila, ordenados por lo último que pasó con cada uno:
+     * la devolución si ya se devolvió, si no la entrega. Trae la misma fila completa que el
+     * Historial, así el detalle de cada préstamo se abre sin volver a consultar la base.
      */
     @Query(
-        "SELECT * FROM (" +
-            "SELECT p.id_prestamo AS id_prestamo, a.nombre AS alumno_nombre, " +
-            "a.apellido AS alumno_apellido, c.codigo AS codigo_computadora, " +
-            "'PRESTAMO' AS tipo, p.fecha_prestamo AS fecha_movimiento " +
-            "FROM prestamo p " +
-            "INNER JOIN alumno a ON a.id_alumno = p.id_alumno " +
-            "INNER JOIN computadora c ON c.id_computadora = p.id_computadora " +
-            "UNION ALL " +
-            "SELECT p.id_prestamo, a.nombre, a.apellido, c.codigo, " +
-            "'DEVOLUCION', p.fecha_devolucion " +
-            "FROM prestamo p " +
-            "INNER JOIN alumno a ON a.id_alumno = p.id_alumno " +
-            "INNER JOIN computadora c ON c.id_computadora = p.id_computadora " +
-            "WHERE p.estado = 'DEVUELTO'" +
-            ") ORDER BY fecha_movimiento DESC, tipo ASC, id_prestamo DESC " +
+        SELECT_PRESTAMO_HISTORIAL +
+            "ORDER BY COALESCE(p.fecha_devolucion, p.fecha_prestamo) DESC, p.id_prestamo DESC " +
             "LIMIT :limite",
     )
-    fun movimientosRecientes(limite: Int): Flow<List<MovimientoReciente>>
+    fun prestamosRecientes(limite: Int): Flow<List<PrestamoHistorial>>
 }

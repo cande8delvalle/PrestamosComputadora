@@ -36,15 +36,15 @@ class RegistrarDevolucionViewModelTest {
 
     @Before
     fun setUp() = runTest {
-        SesionActual.administradorId = 3
+        SesionActual.usuarioId = 3
         prestamoDao.insertar(
-            Prestamo(idAlumno = 1, idComputadora = 12, idAdministradorPrestamo = 1, fechaPrestamo = 10_000L),
+            Prestamo(idAlumno = 1, idComputadora = 12, idUsuarioPrestamo = 1, fechaPrestamo = 10_000L),
         )
     }
 
     @After
     fun tearDown() {
-        SesionActual.administradorId = null
+        SesionActual.usuarioId = null
     }
 
     @Test
@@ -110,9 +110,9 @@ class RegistrarDevolucionViewModelTest {
         val prestamo = prestamoDao.prestamos.single()
         assertEquals(Prestamo.ESTADO_DEVUELTO, prestamo.estado)
         assertEquals(90_000L, prestamo.fechaDevolucion)
-        // Quien entregó no cambia; quien recibió es el administrador de la sesión.
-        assertEquals(1L, prestamo.idAdministradorPrestamo)
-        assertEquals(3L, prestamo.idAdministradorDevolucion)
+        // Quien entregó no cambia; quien recibió es el usuario de la sesión.
+        assertEquals(1L, prestamo.idUsuarioPrestamo)
+        assertEquals(3L, prestamo.idUsuarioDevolucion)
 
         assertTrue(vm.uiState.mostrarModalExito)
         assertFalse(vm.uiState.isLoading)
@@ -121,7 +121,7 @@ class RegistrarDevolucionViewModelTest {
     @Test
     fun sinSesion_noGuardaYMuestraError() {
         val vm = nuevoVm().apply { onCodigoEscaneado("PC-12") }
-        SesionActual.administradorId = null
+        SesionActual.usuarioId = null
 
         vm.onConfirmarClick()
 
@@ -134,7 +134,7 @@ class RegistrarDevolucionViewModelTest {
     @Test
     fun prestamoYaDevuelto_noGuardaRevisionYMuestraError() = runTest {
         val vm = nuevoVm().apply { onCodigoEscaneado("PC-12") }
-        prestamoDao.actualizarDevolucion(1, 60_000L, idAdministradorDevolucion = 2)
+        prestamoDao.actualizarDevolucion(1, 60_000L, idUsuarioDevolucion = 2)
 
         vm.onConfirmarClick()
 

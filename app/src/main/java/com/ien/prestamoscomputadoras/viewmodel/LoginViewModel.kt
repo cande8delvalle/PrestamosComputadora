@@ -9,7 +9,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.ien.prestamoscomputadoras.data.AppDatabase
-import com.ien.prestamoscomputadoras.data.repository.AdministradorRepository
+import com.ien.prestamoscomputadoras.data.repository.UsuarioRepository
 import com.ien.prestamoscomputadoras.util.SesionActual
 import kotlinx.coroutines.launch
 
@@ -37,7 +37,7 @@ data class LoginUiState(
  * contraseña).
  */
 class LoginViewModel(
-    private val administradorRepository: AdministradorRepository,
+    private val usuarioRepository: UsuarioRepository,
 ) : ViewModel() {
 
     var uiState by mutableStateOf(LoginUiState())
@@ -58,7 +58,7 @@ class LoginViewModel(
 
     /**
      * Valida el formulario y autentica. Si algo no cumple, escribe el mensaje en
-     * [LoginUiState.error]. Si las credenciales son correctas, guarda el administrador en
+     * [LoginUiState.error]. Si las credenciales son correctas, guarda el usuario en
      * [SesionActual] e invoca [onLoginExitoso] (la UI navega a Home).
      */
     fun onLoginClick(onLoginExitoso: () -> Unit) {
@@ -80,12 +80,12 @@ class LoginViewModel(
         uiState = uiState.copy(isLoading = true)
         viewModelScope.launch {
             try {
-                val administrador = administradorRepository.autenticar(usuario, contrasena)
-                if (administrador == null) {
+                val cuenta = usuarioRepository.autenticar(usuario, contrasena)
+                if (cuenta == null) {
                     uiState = uiState.copy(error = ERROR_LOGIN_CREDENCIALES)
                     return@launch
                 }
-                SesionActual.administradorId = administrador.idAdministrador
+                SesionActual.usuarioId = cuenta.idUsuario
                 onLoginExitoso()
             } finally {
                 uiState = uiState.copy(isLoading = false)
@@ -98,7 +98,7 @@ class LoginViewModel(
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = checkNotNull(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
-                LoginViewModel(AdministradorRepository(AppDatabase.getInstance(app).administradorDao()))
+                LoginViewModel(UsuarioRepository(AppDatabase.getInstance(app).usuarioDao()))
             }
         }
     }

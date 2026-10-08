@@ -1,7 +1,7 @@
 package com.ien.prestamoscomputadoras.viewmodel
 
-import com.ien.prestamoscomputadoras.data.entity.Administrador
-import com.ien.prestamoscomputadoras.data.repository.AdministradorRepository
+import com.ien.prestamoscomputadoras.data.entity.Usuario
+import com.ien.prestamoscomputadoras.data.repository.UsuarioRepository
 import com.ien.prestamoscomputadoras.data.repository.HomeRepository
 import com.ien.prestamoscomputadoras.data.repository.PermisosRepository
 import com.ien.prestamoscomputadoras.util.SesionActual
@@ -21,13 +21,13 @@ class LoginViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private val dao = FakeAdministradorDao()
+    private val dao = FakeUsuarioDao()
     private var idAdmin = 0L
 
     @Before
     fun setUp() = runTest {
         idAdmin = dao.insertar(
-            Administrador(
+            Usuario(
                 nombre = "Juan",
                 apellido = "Pérez",
                 nombreUsuario = "Jperez",
@@ -40,12 +40,12 @@ class LoginViewModelTest {
 
     @After
     fun tearDown() {
-        SesionActual.administradorId = null
+        SesionActual.usuarioId = null
     }
 
     private fun login(usuario: String, contrasena: String): Pair<LoginViewModel, Boolean> {
         var exitoso = false
-        val vm = LoginViewModel(AdministradorRepository(dao)).apply {
+        val vm = LoginViewModel(UsuarioRepository(dao)).apply {
             onUsuarioChange(usuario)
             onContrasenaChange(contrasena)
             onLoginClick { exitoso = true }
@@ -56,10 +56,10 @@ class LoginViewModelTest {
     @Test
     fun credencialesCorrectas_conUsuarioOEmail_guardanLaSesion() {
         listOf("Jperez", "jperez", "admin@ien.edu.ar", "ADMIN@ien.edu.ar").forEach { usuario ->
-            SesionActual.administradorId = null
+            SesionActual.usuarioId = null
             val (vm, exitoso) = login(usuario, "secreta1")
             assertTrue(usuario, exitoso)
-            assertEquals(usuario, idAdmin, SesionActual.administradorId)
+            assertEquals(usuario, idAdmin, SesionActual.usuarioId)
             assertNull(vm.uiState.error)
         }
     }
@@ -70,15 +70,15 @@ class LoginViewModelTest {
             val (vm, exitoso) = login(usuario, contrasena)
             assertFalse(exitoso)
             assertEquals(ERROR_LOGIN_CREDENCIALES, vm.uiState.error)
-            assertNull(SesionActual.administradorId)
+            assertNull(SesionActual.usuarioId)
             assertFalse(vm.uiState.isLoading)
         }
     }
 
     @Test
-    fun cerrarSesion_limpiaElAdministrador() {
+    fun cerrarSesion_limpiaElUsuario() {
         login("Jperez", "secreta1")
-        HomeViewModel(HomeRepository(FakeHomeDao()), PermisosRepository(FakeRolDao()), idAdministrador = null).cerrarSesion()
-        assertNull(SesionActual.administradorId)
+        HomeViewModel(HomeRepository(FakeHomeDao()), PermisosRepository(FakeRolDao()), idUsuario = null).cerrarSesion()
+        assertNull(SesionActual.usuarioId)
     }
 }

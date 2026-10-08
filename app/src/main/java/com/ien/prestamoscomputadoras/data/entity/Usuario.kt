@@ -13,10 +13,10 @@ import androidx.room.PrimaryKey
  * (ver [com.ien.prestamoscomputadoras.util.hashPassword]).
  *
  * [idRol] define qué puede hacer: la primera cuenta registrada es Admin y las siguientes,
- * Personal Administrativo (ver [com.ien.prestamoscomputadoras.data.repository.AdministradorRepository.registrar]).
+ * Personal Administrativo (ver [com.ien.prestamoscomputadoras.data.repository.UsuarioRepository.registrar]).
  */
 @Entity(
-    tableName = "administrador",
+    tableName = "usuario",
     indices = [
         Index(value = ["email"], unique = true),
         Index(value = ["nombre_usuario"], unique = true),
@@ -31,10 +31,10 @@ import androidx.room.PrimaryKey
         ),
     ],
 )
-data class Administrador(
+data class Usuario(
     @PrimaryKey(autoGenerate = true)
-    @ColumnInfo(name = "id_administrador")
-    val idAdministrador: Long = 0,
+    @ColumnInfo(name = "id_usuario")
+    val idUsuario: Long = 0,
     val nombre: String,
     val apellido: String,
     @ColumnInfo(name = "nombre_usuario")

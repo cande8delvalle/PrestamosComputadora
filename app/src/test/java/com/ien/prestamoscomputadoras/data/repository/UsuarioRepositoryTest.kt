@@ -1,19 +1,19 @@
 package com.ien.prestamoscomputadoras.data.repository
 
-import com.ien.prestamoscomputadoras.data.entity.Administrador
+import com.ien.prestamoscomputadoras.data.entity.Usuario
 import com.ien.prestamoscomputadoras.data.entity.Rol
-import com.ien.prestamoscomputadoras.viewmodel.FakeAdministradorDao
+import com.ien.prestamoscomputadoras.viewmodel.FakeUsuarioDao
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class AdministradorRepositoryTest {
+class UsuarioRepositoryTest {
 
-    private val dao = FakeAdministradorDao()
-    private val repo = AdministradorRepository(dao)
+    private val dao = FakeUsuarioDao()
+    private val repo = UsuarioRepository(dao)
 
-    private fun cuenta(usuario: String, idRol: Long = Rol.ID_PERSONAL) = Administrador(
+    private fun cuenta(usuario: String, idRol: Long = Rol.ID_PERSONAL) = Usuario(
         nombre = "N",
         apellido = "A",
         nombreUsuario = usuario,
@@ -31,7 +31,7 @@ class AdministradorRepositoryTest {
 
         assertEquals(
             listOf(Rol.ID_ADMIN, Rol.ID_PERSONAL, Rol.ID_PERSONAL),
-            dao.administradores.map { it.idRol },
+            dao.usuarios.map { it.idRol },
         )
     }
 
@@ -42,14 +42,14 @@ class AdministradorRepositoryTest {
         // Aunque el objeto venga con rol Admin, se registra como Personal Administrativo.
         repo.registrar(cuenta("intruso", idRol = Rol.ID_ADMIN))
 
-        assertEquals(1, dao.administradores.count { it.idRol == Rol.ID_ADMIN })
-        assertEquals(Rol.ID_PERSONAL, dao.administradores.single { it.nombreUsuario == "intruso" }.idRol)
+        assertEquals(1, dao.usuarios.count { it.idRol == Rol.ID_ADMIN })
+        assertEquals(Rol.ID_PERSONAL, dao.usuarios.single { it.nombreUsuario == "intruso" }.idRol)
     }
 
     @Test
     fun primeraCuenta_esAdmin_aunqueSePidaPersonal() = runTest {
         repo.registrar(cuenta("primero", idRol = Rol.ID_PERSONAL))
-        assertEquals(Rol.ID_ADMIN, dao.administradores.single().idRol)
+        assertEquals(Rol.ID_ADMIN, dao.usuarios.single().idRol)
     }
 
     @Test
@@ -57,8 +57,8 @@ class AdministradorRepositoryTest {
         repo.registrar(cuenta("admin"))
         (1..20).forEach { repo.registrar(cuenta("p$it")) }
 
-        assertEquals(1, dao.administradores.count { it.idRol == Rol.ID_ADMIN })
-        assertEquals(20, dao.administradores.count { it.idRol == Rol.ID_PERSONAL })
-        assertTrue(dao.administradores.first().idRol == Rol.ID_ADMIN)
+        assertEquals(1, dao.usuarios.count { it.idRol == Rol.ID_ADMIN })
+        assertEquals(20, dao.usuarios.count { it.idRol == Rol.ID_PERSONAL })
+        assertTrue(dao.usuarios.first().idRol == Rol.ID_ADMIN)
     }
 }

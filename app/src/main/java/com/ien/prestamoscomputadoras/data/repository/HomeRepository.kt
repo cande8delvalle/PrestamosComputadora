@@ -1,7 +1,7 @@
 package com.ien.prestamoscomputadoras.data.repository
 
 import com.ien.prestamoscomputadoras.data.dao.HomeDao
-import com.ien.prestamoscomputadoras.data.dao.MovimientoReciente
+import com.ien.prestamoscomputadoras.data.dao.PrestamoHistorial
 import kotlinx.coroutines.flow.Flow
 
 /** Resumen del día para la pantalla de inicio. Todo es observable: se actualiza solo. */
@@ -13,7 +13,7 @@ class HomeRepository(private val homeDao: HomeDao) {
     /** Devoluciones registradas en [desde, hasta). */
     fun devueltosEntre(desde: Long, hasta: Long): Flow<Int> = homeDao.contarDevueltosEntre(desde, hasta)
 
-    /** Últimos [limite] préstamos y devoluciones, mezclados, del más reciente al más antiguo. */
-    fun movimientosRecientes(limite: Int): Flow<List<MovimientoReciente>> =
-        homeDao.movimientosRecientes(limite)
+    /** Últimos [limite] préstamos (uno por fila, con todo su detalle), más reciente primero. */
+    fun prestamosRecientes(limite: Int): Flow<List<PrestamoHistorial>> =
+        homeDao.prestamosRecientes(limite)
 }
