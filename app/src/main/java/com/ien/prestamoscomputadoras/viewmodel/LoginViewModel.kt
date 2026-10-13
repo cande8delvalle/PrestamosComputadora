@@ -89,6 +89,7 @@ class LoginViewModel(
                 .onSuccess { perfil ->
                     uiState = uiState.copy(isLoading = false)
                     SesionActual.usuarioId = perfil.idPerfil
+                    SesionActual.nombreUsuario = perfil.nombreUsuario
                     onLoginExitoso()
                 }
                 .onFailure { e ->

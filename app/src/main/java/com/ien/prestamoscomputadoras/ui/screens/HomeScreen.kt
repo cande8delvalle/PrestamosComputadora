@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -131,7 +132,7 @@ private fun HomeContent(
             .fillMaxSize()
             .background(IenCream),
     ) {
-        HomeHeader(onLogoutClick = onLogoutClick)
+        HomeHeader(saludo = uiState.saludo, onLogoutClick = onLogoutClick)
 
         // Contenido scrolleable: ocupa todo el alto debajo del header. La versión va adentro,
         // al final, para que nada quede fijo tapando las últimas tarjetas.
@@ -271,7 +272,7 @@ private fun HomeContent(
 
 /** Header violeta simple: saludo a la izquierda y botón de cerrar sesión a la derecha. */
 @Composable
-private fun HomeHeader(onLogoutClick: () -> Unit) {
+private fun HomeHeader(saludo: String, onLogoutClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -281,10 +282,13 @@ private fun HomeHeader(onLogoutClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "Buen día!",
+            text = saludo,
             color = Color.White,
-            fontSize = 28.sp,
+            fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
+            // Un nombre de usuario largo se corta con "…" en vez de empujar el botón de salir.
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
         IconButton(onClick = onLogoutClick) {

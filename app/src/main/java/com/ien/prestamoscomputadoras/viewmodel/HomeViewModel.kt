@@ -39,6 +39,13 @@ private const val LIMITE_ACTIVIDAD_RECIENTE = 5
 /** Cada cuánto se revisa si cambió el día (para que "hoy" se renueve pasada la medianoche). */
 private const val INTERVALO_CHEQUEO_DIA_MS = 60_000L
 
+/**
+ * Saludo del header de Home: "Bienvenido, <nombre_usuario>!", o solo "Bienvenido!" si no hay
+ * nombre (así nunca aparece un nombre vacío ni "null").
+ */
+fun saludoHome(nombreUsuario: String?): String =
+    nombreUsuario?.trim()?.takeIf { it.isNotEmpty() }?.let { "Bienvenido, $it!" } ?: "Bienvenido!"
+
 /** Estado de un préstamo (lo usan la tarjeta del historial y "Actividad reciente"). */
 enum class EstadoPrestamo { ACTIVO, DEVUELTO }
 
@@ -64,6 +71,8 @@ data class ActividadReciente(val detalle: TarjetaHistorial) {
  * Es inmutable: el ViewModel genera un nuevo [HomeUiState] con [copy] en cada cambio.
  */
 data class HomeUiState(
+    /** Texto del header, ej: "Bienvenido, jperez!". */
+    val saludo: String = saludoHome(null),
     /** Préstamos en curso (todavía no devueltos), de cualquier fecha. */
     val cantidadPrestados: Int = 0,
     /** Devoluciones registradas hoy. */
@@ -101,9 +110,14 @@ class HomeViewModel(
     private val usuarioRepository: UsuarioRepository? = null,
     /** Reloj inyectable para los tests. */
     private val ahora: () -> Instant = Clock.System::now,
+    /**
+     * nombre_usuario del perfil logueado. Ya está en memoria desde el login (o el Splash), así
+     * el saludo aparece completo desde el primer cuadro, sin parpadear.
+     */
+    nombreUsuario: String? = null,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(HomeUiState())
+    private val _uiState = MutableStateFlow(HomeUiState(saludo = saludoHome(nombreUsuario)))
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     /** Lo que corre solo mientras la pantalla está visible (incluye la suscripción Realtime). */
@@ -163,6 +177,7 @@ class HomeViewModel(
     /** Cierra la sesión (local y en Supabase). La navegación a Login la hace la UI. */
     fun cerrarSesion() {
         SesionActual.usuarioId = null
+        SesionActual.nombreUsuario = null
         val repositorio = usuarioRepository ?: return
         // viewModelScope se cancela al salir de Home: el cierre corre en un scope propio.
         SesionActual.scope.launch { repositorio.cerrarSesion() }
@@ -185,12 +200,14 @@ class HomeViewModel(
                     permisosRepository = SupabasePermisosRepository(),
                     idUsuario = SesionActual.usuarioId,
                     usuarioRepository = SupabaseUsuarioRepository(),
+                    nombreUsuario = SesionActual.nombreUsuario,
                 )
             }
         }
 
         /** Datos de ejemplo para el @Preview de la pantalla. */
         fun datosDePrueba() = HomeUiState(
+            saludo = saludoHome("jperez"),
             cantidadPrestados = 2,
             cantidadDevueltosHoy = 4,
             actividadReciente = listOf(

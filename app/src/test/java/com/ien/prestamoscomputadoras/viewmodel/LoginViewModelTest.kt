@@ -57,6 +57,8 @@ class LoginViewModelTest {
             val (vm, exitoso) = login(email, "secreta1")
             assertTrue(email, exitoso)
             assertEquals(email, 1L, SesionActual.usuarioId)
+            // Para el saludo de Home.
+            assertEquals(email, "Jperez", SesionActual.nombreUsuario)
             assertNull(vm.uiState.error)
             assertFalse(vm.uiState.isLoading)
         }

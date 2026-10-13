@@ -30,7 +30,8 @@ class HomeViewModelTest {
         permisos: FakePermisosRepository = FakePermisosRepository(),
         idUsuario: Long? = null,
         usuarios: FakeUsuarioRepository? = null,
-    ) = HomeViewModel(home, permisos, idUsuario, usuarios, ahora = { ahora })
+        nombreUsuario: String? = null,
+    ) = HomeViewModel(home, permisos, idUsuario, usuarios, ahora = { ahora }, nombreUsuario = nombreUsuario)
         .also { creados += it }
         .apply { onPantallaVisible() }
 
@@ -45,6 +46,19 @@ class HomeViewModelTest {
 
     private fun HomeViewModel.items() =
         uiState.value.actividadReciente.map { Item(it.nombreAlumno, it.codigoComputadora, it.hora, it.estado) }
+
+    @Test
+    fun saludo_conNombreDeUsuario() {
+        assertEquals("Bienvenido, jperez!", nuevoVm(nombreUsuario = "jperez").uiState.value.saludo)
+    }
+
+    @Test
+    fun saludo_sinNombre_soloBienvenido() {
+        // Sin sesión cargada o con nombre vacío: nunca "Bienvenido, null!" ni "Bienvenido, !".
+        listOf(null, "", "   ").forEach { nombre ->
+            assertEquals("Bienvenido!", nuevoVm(nombreUsuario = nombre).uiState.value.saludo)
+        }
+    }
 
     @Test
     fun sinPrestamos_todoEnCero() {

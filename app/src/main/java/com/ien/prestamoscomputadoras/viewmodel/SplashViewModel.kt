@@ -33,6 +33,7 @@ class SplashViewModel(
             // Si falla (p. ej. sin internet) se va a Bienvenida, como si no hubiera sesión.
             val perfil = usuarioRepository.restaurarSesion().getOrNull()
             SesionActual.usuarioId = perfil?.idPerfil
+            SesionActual.nombreUsuario = perfil?.nombreUsuario
             destino = if (perfil != null) DestinoInicial.HOME else DestinoInicial.BIENVENIDA
         }
     }

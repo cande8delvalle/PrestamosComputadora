@@ -14,6 +14,10 @@ object SesionActual {
     @Volatile
     var usuarioId: Long? = null
 
+    /** nombre_usuario del perfil logueado, para el saludo de Home. `null` si no hay sesión. */
+    @Volatile
+    var nombreUsuario: String? = null
+
     /**
      * Scope que vive mientras viva la app, para tareas que no deben cortarse al cerrar una
      * pantalla (p. ej. avisarle a Supabase que se cerró la sesión).
