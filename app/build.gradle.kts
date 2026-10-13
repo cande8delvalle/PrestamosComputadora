@@ -4,6 +4,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    // @Serializable: convierte los modelos a/desde el JSON que manda Supabase.
+    alias(libs.plugins.kotlin.serialization)
 }
 
 // Credenciales de Supabase: se leen de local.properties (que NO se sube a Git) y se exponen
@@ -45,6 +47,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true
     }
     buildFeatures {
         compose = true
@@ -63,6 +66,17 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
+    // Supabase: base de datos (Postgrest), login (Auth) y cambios en vivo (Realtime).
+    // El BOM fija la misma versión para los tres módulos.
+    implementation(platform(libs.supabase.bom))
+    implementation(libs.supabase.postgrest)
+    implementation(libs.supabase.auth)
+    implementation(libs.supabase.realtime)
+    // Motor HTTP que usa supabase-kt en Android.
+    implementation(libs.ktor.client.android)
+    // Fechas (timestamptz) y zona horaria de Argentina.
+    implementation(libs.kotlinx.datetime)
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
     // Escaneo de QR: CameraX (vista previa + análisis) + ML Kit Barcode Scanning.
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)

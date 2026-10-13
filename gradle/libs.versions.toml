@@ -6,15 +6,23 @@ junitVersion = "1.1.5"
 espressoCore = "3.5.1"
 lifecycleRuntimeKtx = "2.6.1"
 activityCompose = "1.8.0"
-kotlin = "2.2.10"
+# 2.4.0: supabase-kt 3.8.0 está compilado con Kotlin 2.4.0 (un compilador más viejo no lo lee).
+kotlin = "2.4.0"
 composeBom = "2026.02.01"
 navigationCompose = "2.10.2"
 room = "2.8.5"
 ksp = "2.3.12"
-# Misma versión de coroutines que ya trae Lifecycle/Room.
-coroutines = "1.9.0"
+# Misma versión de coroutines que trae supabase-kt.
+coroutines = "1.11.0"
 camerax = "1.5.1"
 mlkitBarcode = "17.3.0"
+# Supabase (versiones verificadas en GitHub/Maven Central, 12/10/2026): BOM 3.8.0 es la última
+# estable; Ktor y kotlinx-datetime son las mismas con las que se compiló supabase-kt 3.8.0.
+supabase = "3.8.0"
+ktor = "3.5.1"
+kotlinxDatetime = "0.8.0"
+# Permite usar java.time (lo usa kotlinx-datetime) en Android 7 (minSdk 24).
+desugarJdkLibs = "2.1.5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -44,9 +52,17 @@ androidx-camera-view = { group = "androidx.camera", name = "camera-view", versio
 androidx-camera-mlkit-vision = { group = "androidx.camera", name = "camera-mlkit-vision", version.ref = "camerax" }
 # Modelo "bundled": viene dentro del APK y funciona sin Google Play Services ni internet.
 mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkitBarcode" }
+supabase-bom = { group = "io.github.jan-tennert.supabase", name = "bom", version.ref = "supabase" }
+supabase-postgrest = { group = "io.github.jan-tennert.supabase", name = "postgrest-kt" }
+supabase-auth = { group = "io.github.jan-tennert.supabase", name = "auth-kt" }
+supabase-realtime = { group = "io.github.jan-tennert.supabase", name = "realtime-kt" }
+ktor-client-android = { group = "io.ktor", name = "ktor-client-android", version.ref = "ktor" }
+kotlinx-datetime = { group = "org.jetbrains.kotlinx", name = "kotlinx-datetime", version.ref = "kotlinxDatetime" }
+desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 kotlinx-coroutines-test ={ group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
