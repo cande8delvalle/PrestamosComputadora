@@ -1,7 +1,8 @@
 package com.ien.prestamoscomputadoras.viewmodel
 
-import com.ien.prestamoscomputadoras.data.repository.UsuarioRepository
-import com.ien.prestamoscomputadoras.util.hashPassword
+import com.ien.prestamoscomputadoras.data.model.Rol
+import com.ien.prestamoscomputadoras.data.remote.ErrorDatos
+import com.ien.prestamoscomputadoras.data.remote.MENSAJE_SIN_CONEXION
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -14,17 +15,18 @@ class RegisterViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private val dao = FakeUsuarioDao()
+    private val repo = FakeUsuarioRepository()
 
-    private fun nuevoVm() = RegisterViewModel(UsuarioRepository(dao))
+    private fun nuevoVm() = RegisterViewModel(repo)
 
     private fun vmCompleto(
         dni: String = "40123456",
         correo: String = "admin@ien.edu.ar",
+        nombreUsuario: String = "jperez",
     ) = nuevoVm().apply {
         onNombreChange("Juan")
         onApellidoChange("Pérez")
-        onNombreUsuarioChange("jperez")
+        onNombreUsuarioChange(nombreUsuario)
         onDniChange(dni)
         onCorreoChange(correo)
         onContrasenaChange("secreta1")
@@ -52,28 +54,58 @@ class RegisterViewModelTest {
     }
 
     @Test
-    fun formularioValido_guardaUsuarioConHashYCorreoEnMinuscula() {
+    fun formularioValido_mandaLosDatosConCorreoEnMinuscula() {
         val vm = vmCompleto(correo = " Admin@IEN.edu.ar ")
         vm.onCrearCuentaClick()
 
-        val guardado = dao.usuarios.single()
-        assertEquals("jperez", guardado.nombreUsuario)
-        assertEquals("admin@ien.edu.ar", guardado.email)
-        assertEquals(hashPassword("secreta1"), guardado.contrasenaHash)
+        val perfil = repo.perfiles.single()
+        assertEquals("jperez", perfil.nombreUsuario)
+        assertEquals("admin@ien.edu.ar", perfil.email)
+        assertEquals("40123456", perfil.dni)
+        assertEquals("secreta1", repo.contrasenas["admin@ien.edu.ar"])
         assertFalse(vm.uiState.isLoading)
     }
 
     @Test
-    fun nombreUsuarioOCorreoEnUso_muestraErrorYNoGuarda() {
+    fun primeraCuentaAdmin_lasSiguientesPersonal() {
+        // La regla vive en el trigger handle_new_user de la base; el fake la imita.
+        vmCompleto().onCrearCuentaClick()
+        vmCompleto(correo = "otro@ien.edu.ar", nombreUsuario = "otro").onCrearCuentaClick()
+        assertEquals(listOf(Rol.ID_ADMIN, Rol.ID_PERSONAL), repo.perfiles.map { it.idRol })
+    }
+
+    @Test
+    fun nombreUsuarioEnUso_muestraErrorEnEseCampo() {
         vmCompleto().onCrearCuentaClick()
 
-        val vm = vmCompleto().apply { onNombreUsuarioChange("JPEREZ") }
+        val vm = vmCompleto(correo = "otro@ien.edu.ar")
         vm.onCrearCuentaClick()
 
         assertEquals(ERROR_NOMBRE_USUARIO_EN_USO, vm.uiState.errores.nombreUsuario)
+        assertFalse(vm.uiState.mostrarModalExito)
+        assertEquals(1, repo.perfiles.size)
+    }
+
+    @Test
+    fun correoEnUso_muestraErrorEnEseCampo() {
+        vmCompleto().onCrearCuentaClick()
+
+        val vm = vmCompleto(nombreUsuario = "otro")
+        vm.onCrearCuentaClick()
+
         assertEquals(ERROR_CORREO_EN_USO, vm.uiState.errores.correo)
         assertFalse(vm.uiState.mostrarModalExito)
-        assertEquals(1, dao.usuarios.size)
+    }
+
+    @Test
+    fun sinInternet_muestraErrorGeneral() {
+        repo.falla = ErrorDatos.SinConexion()
+        val vm = vmCompleto()
+        vm.onCrearCuentaClick()
+
+        assertEquals(MENSAJE_SIN_CONEXION, vm.uiState.errorGeneral)
+        assertFalse(vm.uiState.mostrarModalExito)
+        assertFalse(vm.uiState.isLoading)
     }
 
     @Test
@@ -97,8 +129,8 @@ class RegisterViewModelTest {
 
     @Test
     fun correoValido_pasa() {
-        listOf("admin@ien.edu.ar", "j.perez+x@gmail.com", " admin@ien.com ").forEach { correo ->
-            val vm = vmCompleto(correo = correo)
+        listOf("admin@ien.edu.ar", "j.perez+x@gmail.com", " admin2@ien.com ").forEachIndexed { i, correo ->
+            val vm = vmCompleto(correo = correo, nombreUsuario = "u$i")
             vm.onCrearCuentaClick()
             assertNull(correo, vm.uiState.errores.correo)
         }

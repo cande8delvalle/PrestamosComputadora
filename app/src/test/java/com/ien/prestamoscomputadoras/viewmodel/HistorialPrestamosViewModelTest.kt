@@ -1,15 +1,12 @@
 package com.ien.prestamoscomputadoras.viewmodel
 
-import com.ien.prestamoscomputadoras.data.dao.HistorialDao
-import com.ien.prestamoscomputadoras.data.dao.PrestamoHistorial
-import com.ien.prestamoscomputadoras.data.entity.EstadoComputadora
-import com.ien.prestamoscomputadoras.data.entity.Prestamo
-import com.ien.prestamoscomputadoras.data.repository.HistorialRepository
-import java.util.Calendar
-import java.util.TimeZone
+import com.ien.prestamoscomputadoras.data.remote.ErrorDatos
+import com.ien.prestamoscomputadoras.data.remote.MENSAJE_SIN_CONEXION
+import kotlin.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -18,107 +15,52 @@ class HistorialPrestamosViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    /** Epoch ms en la zona horaria del dispositivo (la misma que usa el ViewModel). */
-    private fun fecha(dia: Int, hora: Int, minuto: Int = 0): Long =
-        Calendar.getInstance().apply {
-            clear()
-            set(2026, Calendar.SEPTEMBER, dia, hora, minuto)
-        }.timeInMillis
+    // Miércoles 30/09/2026 a las 18:00 (Argentina). El lunes de esa semana es el 28.
+    private val ahora = fechaAr(9, 30, 18)
 
-    // Miércoles 30/09/2026 a las 18:00. El lunes de esa semana es el 28.
-    private val ahora = fecha(30, 18)
-
-    /** Devuelve las filas dentro del rango pedido, ordenadas como la query real. */
-    private class FakeHistorialDao(private val filas: List<PrestamoHistorial>) : HistorialDao {
-        var desde = 0L
-        var hasta = 0L
-
-        override suspend fun listarEntre(desde: Long, hasta: Long): List<PrestamoHistorial> {
-            this.desde = desde
-            this.hasta = hasta
-            return filas
-                .filter { it.prestamo.fechaPrestamo in desde until hasta }
-                .sortedByDescending { it.prestamo.fechaPrestamo }
-        }
-    }
-
-    private fun fila(
-        id: Long,
-        fechaPrestamo: Long,
-        fechaDevolucion: Long? = null,
-        observacionesIniciales: String? = null,
-        revision: EstadoComputadora? = null,
-        usuarioPrestamo: Pair<String, String> = "Ana" to "López",
-        usuarioDevolucion: Pair<String, String>? = if (fechaDevolucion != null) "Marta" to "Ruiz" else null,
-    ) = PrestamoHistorial(
-        prestamo = Prestamo(
-            idPrestamo = id,
-            idAlumno = 1,
-            idComputadora = 7,
-            idUsuarioPrestamo = 1,
-            fechaPrestamo = fechaPrestamo,
-            fechaDevolucion = fechaDevolucion,
-            idUsuarioDevolucion = if (usuarioDevolucion != null) 2 else null,
-            estado = if (fechaDevolucion != null) Prestamo.ESTADO_DEVUELTO else Prestamo.ESTADO_ACTIVO,
-            observacionesIniciales = observacionesIniciales,
-        ),
-        revision = revision,
-        alumnoNombre = "Juan",
-        alumnoApellido = "Pérez",
-        alumnoDni = "46111222",
-        codigoComputadora = "PC-7",
-        usuarioPrestamoNombre = usuarioPrestamo.first,
-        usuarioPrestamoApellido = usuarioPrestamo.second,
-        usuarioDevolucionNombre = usuarioDevolucion?.first,
-        usuarioDevolucionApellido = usuarioDevolucion?.second,
-    )
-
-    private fun revision(idPrestamo: Long, cargador: Boolean = true, observaciones: String? = null) =
-        EstadoComputadora(
-            idPrestamo = idPrestamo,
-            enciende = true,
-            pantallaOk = true,
-            cargador = cargador,
-            observaciones = observaciones,
-            fechaRevision = 0,
-        )
+    private fun nuevoVm(repo: FakeHistorialRepository, reloj: Instant = ahora) =
+        HistorialPrestamosViewModel(repo, ahora = { reloj })
 
     @Test
-    fun rangoSemana_vaDelLunesAlFinDeHoy() {
+    fun rangoSemana_vaDelLunesAlFinDeHoy_enHoraArgentina() {
         val r = rangoSemana(ahora)
-        assertEquals(fecha(28, 0), r.inicioLunes)
-        assertEquals(fecha(30, 0), r.inicioHoy)
-        // Calendar es lenient: "31 de septiembre" = 1 de octubre a las 00:00.
-        assertEquals(fecha(31, 0), r.finHoy)
+        assertEquals(fechaAr(9, 28, 0), r.inicioLunes)
+        assertEquals(fechaAr(9, 30, 0), r.inicioHoy)
+        assertEquals(fechaAr(10, 1, 0), r.finHoy)
     }
 
     @Test
     fun rangoSemana_enLunesYDomingo() {
-        val lunes = rangoSemana(fecha(28, 9))
-        assertEquals(fecha(28, 0), lunes.inicioLunes)
-        assertEquals(fecha(28, 0), lunes.inicioHoy)
+        val lunes = rangoSemana(fechaAr(9, 28, 9))
+        assertEquals(fechaAr(9, 28, 0), lunes.inicioLunes)
+        assertEquals(fechaAr(9, 28, 0), lunes.inicioHoy)
 
         // Domingo 27/09: la semana arrancó el lunes 21.
-        val domingo = rangoSemana(fecha(27, 9))
-        assertEquals(fecha(21, 0), domingo.inicioLunes)
+        assertEquals(fechaAr(9, 21, 0), rangoSemana(fechaAr(9, 27, 9)).inicioLunes)
+    }
+
+    @Test
+    fun rangoSemana_noDependeDeLaZonaDelServidor() {
+        // 30/09 01:30 UTC todavía es 29/09 22:30 en Argentina: "hoy" es el 29.
+        val r = rangoSemana(Instant.parse("2026-09-30T01:30:00Z"))
+        assertEquals(fechaAr(9, 29, 0), r.inicioHoy)
     }
 
     @Test
     fun filtros_hoyYEstaSemana() {
-        val dao = FakeHistorialDao(
+        val repo = FakeHistorialRepository(
             listOf(
-                fila(1, fecha(25, 10)), // viernes de la semana anterior: nunca aparece
-                fila(2, fecha(28, 9)), // lunes
-                fila(3, fecha(30, 8)), // hoy
-                fila(4, fecha(30, 17)), // hoy, más tarde
+                filaHistorial(1, fechaAr(9, 25, 10)), // viernes de la semana anterior: nunca aparece
+                filaHistorial(2, fechaAr(9, 28, 9)), // lunes
+                filaHistorial(3, fechaAr(9, 30, 8)), // hoy
+                filaHistorial(4, fechaAr(9, 30, 17)), // hoy, más tarde
             ),
         )
-        val vm = HistorialPrestamosViewModel(HistorialRepository(dao), ahora = { ahora })
+        val vm = nuevoVm(repo)
 
-        assertEquals(fecha(28, 0), dao.desde)
+        assertEquals(fechaAr(9, 28, 0), repo.desde)
         assertFalse(vm.uiState.cargando)
 
-        // Por defecto "Hoy", del más reciente al más antiguo.
         assertEquals(FiltroHistorial.HOY, vm.uiState.filtro)
         assertEquals(listOf(4L, 3L), vm.uiState.tarjetas.map { it.idPrestamo })
 
@@ -131,14 +73,13 @@ class HistorialPrestamosViewModelTest {
 
     @Test
     fun tarjeta_devueltaYActiva() {
-        val dao = FakeHistorialDao(
+        val repo = FakeHistorialRepository(
             listOf(
-                fila(1, fecha(30, 9, 30), fechaDevolucion = fecha(30, 10, 45), revision = revision(1)),
-                fila(2, fecha(30, 17), usuarioPrestamo = "Carlos" to "Díaz"),
+                filaHistorial(1, fechaAr(9, 30, 9, 30), fechaDevolucion = fechaAr(9, 30, 10, 45), codigo = "PC-7"),
+                filaHistorial(2, fechaAr(9, 30, 17), prestadoPor = "Carlos Díaz"),
             ),
         )
-        val vm = HistorialPrestamosViewModel(HistorialRepository(dao), ahora = { ahora })
-        val (activa, devuelta) = vm.uiState.tarjetas
+        val (activa, devuelta) = nuevoVm(repo).uiState.tarjetas
 
         assertEquals(EstadoPrestamo.DEVUELTO, devuelta.estado)
         assertEquals("Juan Pérez", devuelta.nombreAlumno)
@@ -158,40 +99,31 @@ class HistorialPrestamosViewModelTest {
     }
 
     @Test
-    fun tarjeta_devueltaAntesDeV6_sinDevueltoPor() {
-        // Devuelta antes de que se guardara quién la recibió: solo se sabe quién la prestó.
-        val dao = FakeHistorialDao(
-            listOf(fila(1, fecha(30, 9), fechaDevolucion = fecha(30, 10), usuarioDevolucion = null)),
-        )
-        val vm = HistorialPrestamosViewModel(HistorialRepository(dao), ahora = { ahora })
-        val tarjeta = vm.uiState.tarjetas.single()
-
-        assertEquals(EstadoPrestamo.DEVUELTO, tarjeta.estado)
-        assertEquals("Ana López", tarjeta.prestadoPor)
-        assertNull(tarjeta.devueltoPor)
-    }
-
-    @Test
     fun tarjeta_alertas_porSeparado() {
-        val dao = FakeHistorialDao(
+        val repo = FakeHistorialRepository(
             listOf(
                 // Activo con observación al entregar: solo el chip ámbar.
-                fila(1, fecha(28, 9), observacionesIniciales = " Rayón en la tapa "),
+                filaHistorial(1, fechaAr(9, 28, 9), observacionesIniciales = " Rayón en la tapa "),
                 // Devuelto sin cargador y con observaciones: solo el chip rojo.
-                fila(
-                    2, fecha(29, 9), fechaDevolucion = fecha(29, 11),
-                    revision = revision(2, cargador = false, observaciones = "Tecla floja"),
+                filaHistorial(
+                    2, fechaAr(9, 29, 9), fechaDevolucion = fechaAr(9, 29, 11),
+                    cargador = false, observacionesDevolucion = "Tecla floja",
                 ),
                 // Devuelto OK: ningún chip.
-                fila(3, fecha(29, 12), fechaDevolucion = fecha(29, 13), revision = revision(3)),
+                filaHistorial(3, fechaAr(9, 29, 12), fechaDevolucion = fechaAr(9, 29, 13)),
                 // Las dos condiciones: los dos chips.
-                fila(
-                    4, fecha(30, 9), fechaDevolucion = fecha(30, 11),
-                    observacionesIniciales = "Pantalla rayada", revision = revision(4, cargador = false),
+                filaHistorial(
+                    4, fechaAr(9, 30, 9), fechaDevolucion = fechaAr(9, 30, 11),
+                    observacionesIniciales = "Pantalla rayada", cargador = false,
+                ),
+                // Devuelto pero sin revisión guardada: ningún chip rojo.
+                filaHistorial(
+                    5, fechaAr(9, 30, 10), fechaDevolucion = fechaAr(9, 30, 12),
+                    enciende = null, pantallaOk = null, cargador = null,
                 ),
             ),
         )
-        val vm = HistorialPrestamosViewModel(HistorialRepository(dao), ahora = { ahora })
+        val vm = nuevoVm(repo)
         vm.onFiltroSeleccionado(FiltroHistorial.ESTA_SEMANA)
         val porId = vm.uiState.tarjetas.associateBy { it.idPrestamo }
 
@@ -210,12 +142,13 @@ class HistorialPrestamosViewModelTest {
         assertEquals("Pantalla rayada", porId.getValue(4).observacionEntrega)
         assertEquals(false, porId.getValue(4).danioDevolucion?.cargador)
         assertNull(porId.getValue(4).danioDevolucion?.observaciones)
+
+        assertNull(porId.getValue(5).danioDevolucion)
     }
 
     @Test
     fun alerta_abrirYCerrarModal() {
-        val dao = FakeHistorialDao(listOf(fila(1, fecha(30, 9), observacionesIniciales = "Rayón")))
-        val vm = HistorialPrestamosViewModel(HistorialRepository(dao), ahora = { ahora })
+        val vm = nuevoVm(FakeHistorialRepository(listOf(filaHistorial(1, fechaAr(9, 30, 9), observacionesIniciales = "Rayón"))))
         val tarjeta = vm.uiState.tarjetas.single()
 
         vm.onAlertaClick(tarjeta, TipoAlerta.OBSERVACION_ENTREGA)
@@ -227,8 +160,7 @@ class HistorialPrestamosViewModelTest {
 
     @Test
     fun tarjeta_abreYCierraElDetalleSinTocarLaAlerta() {
-        val dao = FakeHistorialDao(listOf(fila(1, fecha(30, 9), observacionesIniciales = "Rayón")))
-        val vm = HistorialPrestamosViewModel(HistorialRepository(dao), ahora = { ahora })
+        val vm = nuevoVm(FakeHistorialRepository(listOf(filaHistorial(1, fechaAr(9, 30, 9), observacionesIniciales = "Rayón"))))
         val tarjeta = vm.uiState.tarjetas.single()
 
         vm.onTarjetaClick(tarjeta)
@@ -240,24 +172,38 @@ class HistorialPrestamosViewModelTest {
     }
 
     @Test
-    fun horas_enZonaHorariaDelDispositivo() {
-        val original = TimeZone.getDefault()
+    fun horas_siempreEnHoraArgentina_aunqueElCelularTengaOtraZona() {
+        val original = java.util.TimeZone.getDefault()
         try {
-            TimeZone.setDefault(TimeZone.getTimeZone("America/Argentina/Buenos_Aires"))
+            java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Europe/Madrid"))
             // 30/09/2026 20:46 UTC = 17:46 en Argentina (UTC-3).
-            val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
-                clear()
-                set(2026, Calendar.SEPTEMBER, 30, 20, 46)
-            }.timeInMillis
-            val dao = FakeHistorialDao(listOf(fila(1, utc, fechaDevolucion = utc + 60 * 60 * 1000L)))
-            val vm = HistorialPrestamosViewModel(HistorialRepository(dao), ahora = { utc + 2 * 60 * 60 * 1000L })
+            val utc = Instant.parse("2026-09-30T20:46:00Z")
+            val repo = FakeHistorialRepository(
+                listOf(filaHistorial(1, utc, fechaDevolucion = Instant.parse("2026-09-30T21:46:00Z"))),
+            )
+            val tarjeta = nuevoVm(repo, reloj = Instant.parse("2026-09-30T22:46:00Z")).uiState.tarjetas.single()
 
-            val tarjeta = vm.uiState.tarjetas.single()
             assertEquals("17:46", tarjeta.horaPrestamo)
             assertEquals("18:46", tarjeta.horaDevolucion)
             assertEquals("30/09/2026", tarjeta.fechaPrestamo)
         } finally {
-            TimeZone.setDefault(original)
+            java.util.TimeZone.setDefault(original)
         }
+    }
+
+    @Test
+    fun sinInternet_muestraErrorYReintentar() {
+        val repo = FakeHistorialRepository(listOf(filaHistorial(1, fechaAr(9, 30, 9)))).apply {
+            falla = ErrorDatos.SinConexion()
+        }
+        val vm = nuevoVm(repo)
+        assertEquals(MENSAJE_SIN_CONEXION, vm.uiState.error)
+        assertFalse(vm.uiState.cargando)
+        assertTrue(vm.uiState.tarjetas.isEmpty())
+
+        repo.falla = null
+        vm.cargar()
+        assertNull(vm.uiState.error)
+        assertEquals(1, vm.uiState.tarjetas.size)
     }
 }

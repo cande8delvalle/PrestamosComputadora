@@ -1,9 +1,10 @@
 package com.ien.prestamoscomputadoras.viewmodel
 
 import com.ien.prestamoscomputadoras.data.Permiso
-import com.ien.prestamoscomputadoras.data.entity.Rol
-import com.ien.prestamoscomputadoras.data.entity.RolPermiso
-import com.ien.prestamoscomputadoras.data.repository.PermisosRepository
+import com.ien.prestamoscomputadoras.data.model.Rol
+import com.ien.prestamoscomputadoras.data.model.RolPermiso
+import com.ien.prestamoscomputadoras.data.remote.ErrorDatos
+import com.ien.prestamoscomputadoras.data.remote.MENSAJE_SIN_CONEXION
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -16,16 +17,15 @@ class RolesPermisosViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private val rolDao = FakeRolDao(
+    private val repo = FakePermisosRepository(
         rolesPorUsuario = mapOf(1L to Rol.ID_ADMIN, 2L to Rol.ID_PERSONAL),
         permisosIniciales = Permiso.inicialesPersonal.map { RolPermiso(Rol.ID_PERSONAL, it.name) }.toSet(),
     )
 
-    private fun nuevoVm(idUsuario: Long? = 1L) =
-        RolesPermisosViewModel(PermisosRepository(rolDao), idUsuario)
+    private fun nuevoVm(idUsuario: Long? = 1L) = RolesPermisosViewModel(repo, idUsuario)
 
     private fun permisosPersonalGuardados() =
-        rolDao.permisos.value.filter { it.idRol == Rol.ID_PERSONAL }.map { it.permiso }.toSet()
+        repo.permisos.value.filter { it.idRol == Rol.ID_PERSONAL }.map { it.permiso }.toSet()
 
     @Test
     fun tabAdmin_todosTildadosYNoEditables_incluyeGestion() {
@@ -71,15 +71,26 @@ class RolesPermisosViewModelTest {
     }
 
     @Test
+    fun errorAlGuardar_seMuestra() {
+        val vm = nuevoVm()
+        vm.onTabSeleccionado(RolTab.PERSONAL)
+        repo.falla = ErrorDatos.SinConexion()
+
+        vm.onPermisoClick(Permiso.REGISTRAR_ALUMNO)
+
+        assertEquals(MENSAJE_SIN_CONEXION, vm.uiState.error)
+        assertFalse(Permiso.REGISTRAR_ALUMNO.name in permisosPersonalGuardados())
+    }
+
+    @Test
     fun gestionDePermisos_nuncaSeOtorgaAPersonal() = runTest {
         val vm = nuevoVm()
         vm.onTabSeleccionado(RolTab.PERSONAL)
         vm.onPermisoClick(Permiso.GESTION_PERMISOS)
         assertFalse(Permiso.GESTION_PERMISOS.name in permisosPersonalGuardados())
 
-        // Tampoco por el repositorio directamente.
         val error = runCatching {
-            PermisosRepository(rolDao).cambiarPermisoPersonal(Permiso.GESTION_PERMISOS, habilitado = true)
+            repo.cambiarPermisoPersonal(Permiso.GESTION_PERMISOS, habilitado = true)
         }.exceptionOrNull()
         assertTrue(error is IllegalArgumentException)
         assertFalse(Permiso.GESTION_PERMISOS.name in permisosPersonalGuardados())
@@ -99,7 +110,6 @@ class RolesPermisosViewModelTest {
 
     @Test
     fun sinSesion_noTieneAcceso() {
-        val vm = nuevoVm(idUsuario = null)
-        assertFalse(vm.uiState.esAdmin)
+        assertFalse(nuevoVm(idUsuario = null).uiState.esAdmin)
     }
 }
