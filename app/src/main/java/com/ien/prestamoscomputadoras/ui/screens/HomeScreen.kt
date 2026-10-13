@@ -133,8 +133,8 @@ private fun HomeContent(
     ) {
         HomeHeader(onLogoutClick = onLogoutClick)
 
-        // Contenido scrolleable. weight(1f) ocupa todo el alto sobrante, así el footer
-        // (que está FUERA de este Column) queda siempre anclado abajo, haya poco o mucho contenido.
+        // Contenido scrolleable: ocupa todo el alto debajo del header. La versión va adentro,
+        // al final, para que nada quede fijo tapando las últimas tarjetas.
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -246,21 +246,26 @@ private fun HomeContent(
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
-        }
+            Spacer(Modifier.height(28.dp))
 
-        // Footer sticky: fuera del scroll, siempre visible al pie.
-        Text(
-            text = "Versión 1.0 · IEN 2026",
-            color = IenGreyText,
-            fontSize = 12.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(IenCream)
-                .navigationBarsPadding()
-                .padding(vertical = 12.dp),
-        )
+            // Versión: último ítem del contenido que se desplaza (no fijo al pie), así no tapa
+            // nada y solo se ve al llegar al final.
+            Text(
+                text = "Versión 1.0 · IEN 2026",
+                color = IenGreyText,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            // Margen inferior + el alto de la barra de navegación del sistema: el final del
+            // contenido nunca queda debajo de los botones de Android.
+            Spacer(
+                Modifier
+                    .navigationBarsPadding()
+                    .height(16.dp),
+            )
+        }
     }
 }
 
