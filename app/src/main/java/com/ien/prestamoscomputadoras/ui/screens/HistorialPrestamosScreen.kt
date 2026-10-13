@@ -57,6 +57,7 @@ import com.ien.prestamoscomputadoras.ui.theme.IenGreyText
 import com.ien.prestamoscomputadoras.ui.theme.IenPurple
 import com.ien.prestamoscomputadoras.ui.theme.IenPurpleDark
 import com.ien.prestamoscomputadoras.ui.theme.PrestamosComputadorasTheme
+import com.ien.prestamoscomputadoras.ui.components.HoraConFlecha
 import com.ien.prestamoscomputadoras.viewmodel.EstadoPrestamo
 import com.ien.prestamoscomputadoras.viewmodel.FiltroHistorial
 import com.ien.prestamoscomputadoras.viewmodel.HistorialPrestamosUiState
@@ -263,12 +264,11 @@ private fun TarjetaPrestamo(
 
             DatoTarjeta("DNI: ${tarjeta.dniAlumno}")
             DatoTarjeta("${tarjeta.codigoComputadora} · ${tarjeta.fechaPrestamo}")
-            DatoTarjeta(
-                if (tarjeta.horaDevolucion != null) {
-                    "↓${tarjeta.horaPrestamo} hs   ↑${tarjeta.horaDevolucion} hs"
-                } else {
-                    "↓${tarjeta.horaPrestamo} hs"
-                },
+            // Hora de la última actividad: ↑ entrega si sigue prestada, ↓ devolución si ya volvió.
+            HoraConFlecha(
+                hora = tarjeta.horaUltimaActividad,
+                evento = tarjeta.eventoUltimaActividad,
+                modifier = Modifier.padding(vertical = 1.dp),
             )
 
             if (tarjeta.observacionEntrega != null || tarjeta.danioDevolucion != null) {

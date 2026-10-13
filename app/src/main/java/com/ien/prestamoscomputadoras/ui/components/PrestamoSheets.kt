@@ -17,6 +17,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
@@ -48,6 +50,7 @@ import com.ien.prestamoscomputadoras.ui.theme.IenPurpleDark
 import com.ien.prestamoscomputadoras.ui.theme.IenYellow
 import com.ien.prestamoscomputadoras.viewmodel.AlertaAbierta
 import com.ien.prestamoscomputadoras.viewmodel.EstadoPrestamo
+import com.ien.prestamoscomputadoras.viewmodel.EventoHora
 import com.ien.prestamoscomputadoras.viewmodel.RevisionDevolucion
 import com.ien.prestamoscomputadoras.viewmodel.TarjetaHistorial
 import com.ien.prestamoscomputadoras.viewmodel.TipoAlerta
@@ -128,9 +131,9 @@ fun DetallePrestamoSheet(
             Divisor()
             FilaDato("Fecha", tarjeta.fechaPrestamo)
             Divisor()
-            FilaDato("Entrega", "${tarjeta.horaPrestamo} hs")
+            FilaHora(EventoHora.ENTREGA, "${tarjeta.horaPrestamo}hs")
             Divisor()
-            FilaDato("Devolución", tarjeta.horaDevolucion?.let { "$it hs" } ?: "Pendiente")
+            FilaHora(EventoHora.DEVOLUCION, tarjeta.horaDevolucion?.let { "${it}hs" } ?: "Pendiente")
             Divisor()
             when (tarjeta.estado) {
                 EstadoPrestamo.ACTIVO -> FilaDato("Estado", "Prestado", colorValor = IenPurple)
@@ -258,6 +261,27 @@ private fun FilaDato(etiqueta: String, valor: String, colorValor: Color = IenPur
     ) {
         Text(text = etiqueta, color = IenGreyText, fontSize = 13.sp, modifier = Modifier.weight(1f))
         Text(text = valor, color = colorValor, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** "↑ Entrega ........ 23:49hs" / "↓ Devolución ........ 23:53hs". */
+@Composable
+private fun FilaHora(evento: EventoHora, valor: String) {
+    val (icono, etiqueta) = when (evento) {
+        EventoHora.ENTREGA -> Icons.Rounded.ArrowUpward to "Entrega"
+        EventoHora.DEVOLUCION -> Icons.Rounded.ArrowDownward to "Devolución"
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // La etiqueta ya dice "Entrega"/"Devolución": la flecha es decorativa para TalkBack.
+        Icon(icono, contentDescription = null, tint = IenGreyText, modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(text = etiqueta, color = IenGreyText, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        Text(text = valor, color = IenPurple, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 

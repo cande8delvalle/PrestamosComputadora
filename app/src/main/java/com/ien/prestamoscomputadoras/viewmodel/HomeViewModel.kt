@@ -59,7 +59,10 @@ data class ActividadReciente(val detalle: TarjetaHistorial) {
     val codigoComputadora: String get() = detalle.codigoComputadora
 
     /** Hora de lo último que pasó (devolución o entrega), ya formateada, ej: "08:30". */
-    val hora: String get() = detalle.horaDevolucion ?: detalle.horaPrestamo
+    val hora: String get() = detalle.horaUltimaActividad
+
+    /** Si [hora] es de la entrega (flecha arriba) o de la devolución (flecha abajo). */
+    val evento: EventoHora get() = detalle.eventoUltimaActividad
 
     /** Estado actual del préstamo. */
     val estado: EstadoPrestamo get() = detalle.estado

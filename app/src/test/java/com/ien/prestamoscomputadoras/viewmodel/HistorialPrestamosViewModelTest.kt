@@ -99,6 +99,41 @@ class HistorialPrestamosViewModelTest {
     }
 
     @Test
+    fun ultimaActividad_activaMuestraEntrega_devueltaMuestraDevolucion() {
+        val repo = FakeHistorialRepository(
+            listOf(
+                filaHistorial(1, fechaAr(9, 30, 9, 30), fechaDevolucion = fechaAr(9, 30, 10, 45)),
+                filaHistorial(2, fechaAr(9, 30, 17)),
+            ),
+        )
+        val (activa, devuelta) = nuevoVm(repo).uiState.tarjetas
+
+        // Activa: la hora de la entrega, flecha arriba.
+        assertEquals(EventoHora.ENTREGA, activa.eventoUltimaActividad)
+        assertEquals("17:00", activa.horaUltimaActividad)
+        // Devuelta: la hora de la devolución, flecha abajo (la de entrega queda en el detalle).
+        assertEquals(EventoHora.DEVOLUCION, devuelta.eventoUltimaActividad)
+        assertEquals("10:45", devuelta.horaUltimaActividad)
+        assertEquals("09:30", devuelta.horaPrestamo)
+    }
+
+    @Test
+    fun horasDeLasFlechas_enHoraArgentina() {
+        // 23:49 y 23:53 en Argentina = 02:49 y 02:53 UTC del día siguiente.
+        val repo = FakeHistorialRepository(
+            listOf(
+                filaHistorial(
+                    1, Instant.parse("2026-10-01T02:49:00Z"),
+                    fechaDevolucion = Instant.parse("2026-10-01T02:53:00Z"),
+                ),
+            ),
+        )
+        val tarjeta = nuevoVm(repo, reloj = fechaAr(9, 30, 23, 59)).uiState.tarjetas.single()
+        assertEquals("23:49", tarjeta.horaPrestamo)
+        assertEquals("23:53", tarjeta.horaUltimaActividad)
+    }
+
+    @Test
     fun tarjeta_alertas_porSeparado() {
         val repo = FakeHistorialRepository(
             listOf(

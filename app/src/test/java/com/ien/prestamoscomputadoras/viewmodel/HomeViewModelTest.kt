@@ -109,6 +109,11 @@ class HomeViewModelTest {
             ),
             vm.items(),
         )
+        // La flecha de cada fila corresponde al evento de esa hora.
+        assertEquals(
+            listOf(EventoHora.DEVOLUCION, EventoHora.ENTREGA, EventoHora.DEVOLUCION, EventoHora.ENTREGA),
+            vm.uiState.value.actividadReciente.map { it.evento },
+        )
     }
 
     @Test

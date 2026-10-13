@@ -45,6 +45,9 @@ enum class TipoAlerta { OBSERVACION_ENTREGA, DANIO_DEVOLUCION }
 /** Modal de alerta abierto: de qué tarjeta y de qué tipo. */
 data class AlertaAbierta(val tarjeta: TarjetaHistorial, val tipo: TipoAlerta)
 
+/** De qué evento es una hora: la entrega (alta del préstamo) o la devolución. */
+enum class EventoHora { ENTREGA, DEVOLUCION }
+
 /** Una tarjeta del historial, con los textos ya listos para mostrar. */
 data class TarjetaHistorial(
     val idPrestamo: Long,
@@ -78,7 +81,15 @@ data class TarjetaHistorial(
     val devueltoPor: String?,
     /** Epoch ms del préstamo, para aplicar el filtro. */
     val fechaPrestamoMs: Long,
-)
+) {
+    /** Lo último que pasó con el préstamo: la devolución si ya se devolvió, si no la entrega. */
+    val eventoUltimaActividad: EventoHora
+        get() = if (horaDevolucion != null) EventoHora.DEVOLUCION else EventoHora.ENTREGA
+
+    /** Hora de [eventoUltimaActividad] (fecha_devolucion si está DEVUELTO, si no fecha_prestamo). */
+    val horaUltimaActividad: String
+        get() = horaDevolucion ?: horaPrestamo
+}
 
 /** Estado de la pantalla "Historial de Préstamos". Inmutable: se regenera con [copy]. */
 data class HistorialPrestamosUiState(
