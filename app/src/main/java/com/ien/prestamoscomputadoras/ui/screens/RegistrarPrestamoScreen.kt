@@ -29,7 +29,6 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -40,20 +39,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ien.prestamoscomputadoras.ui.components.CampoTexto
 import com.ien.prestamoscomputadoras.ui.components.MensajeError
 import com.ien.prestamoscomputadoras.data.model.Alumno
 import com.ien.prestamoscomputadoras.data.model.Computadora
 import com.ien.prestamoscomputadoras.ui.components.BackHeader
 import com.ien.prestamoscomputadoras.ui.components.ExitoOverlay
 import com.ien.prestamoscomputadoras.ui.components.FormError
-import com.ien.prestamoscomputadoras.ui.components.FormErrorRed
 import com.ien.prestamoscomputadoras.ui.components.FormLabel
-import com.ien.prestamoscomputadoras.ui.components.lavenderFieldColors
 import com.ien.prestamoscomputadoras.ui.theme.IenCream
 import com.ien.prestamoscomputadoras.ui.theme.IenGreyText
 import com.ien.prestamoscomputadoras.ui.theme.IenLavender
@@ -187,15 +184,13 @@ private fun RegistrarPrestamoContent(
 
                     Column {
                         FormLabel("ESTADO INICIAL (OPCIONAL)")
-                        OutlinedTextField(
+                        CampoTexto(
                             value = uiState.observacionesIniciales,
                             onValueChange = onObservacionesChange,
                             enabled = !uiState.isLoading,
                             minLines = 3,
-                            placeholder = { Text("Observaciones sobre el estado del equipo...") },
+                            placeholder = "Observaciones sobre el estado del equipo...",
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = lavenderFieldColors(),
                         )
                     }
                 }
@@ -278,17 +273,15 @@ private fun <T> Selector(
         expanded = expandido,
         onExpandedChange = { if (enabled) expandido = it },
     ) {
-        OutlinedTextField(
+        CampoTexto(
             value = seleccionado?.let(textoSeleccionado).orEmpty(),
             onValueChange = {},
             readOnly = true,
             enabled = enabled,
             singleLine = true,
-            placeholder = { Text(placeholder) },
+            placeholder = placeholder,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandido) },
             isError = error != null,
-            shape = RoundedCornerShape(12.dp),
-            colors = lavenderFieldColors(),
             modifier = Modifier
                 .fillMaxWidth()
                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled),

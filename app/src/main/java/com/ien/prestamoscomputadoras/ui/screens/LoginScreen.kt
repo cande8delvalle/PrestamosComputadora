@@ -26,15 +26,12 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalAutofillManager
 import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.semantics.semantics
@@ -47,6 +44,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ien.prestamoscomputadoras.ui.components.CampoTexto
+import com.ien.prestamoscomputadoras.ui.components.FondoCampo
 import com.ien.prestamoscomputadoras.ui.components.AppHeader
 import com.ien.prestamoscomputadoras.ui.theme.IenCream
 import com.ien.prestamoscomputadoras.ui.theme.IenGreyText
@@ -142,7 +141,7 @@ private fun LoginContent(
             // ContentType le dice al framework de Autofill qué es cada campo. Username + Password
             // en la misma pantalla es lo que lo reconoce como formulario de login (el "username"
             // de esta app es el correo), así ofrece guardar y completar las credenciales.
-            OutlinedTextField(
+            CampoTexto(
                 value = uiState.email,
                 onValueChange = onEmailChange,
                 modifier = Modifier
@@ -152,17 +151,16 @@ private fun LoginContent(
                 leadingIcon = {
                     Icon(Icons.Filled.Email, contentDescription = null)
                 },
-                placeholder = { Text("Ingresá tu correo electrónico") },
+                placeholder = "Ingresá tu correo electrónico",
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 isError = uiState.error != null,
-                shape = RoundedCornerShape(12.dp),
-                colors = ienFieldColors(),
+                fondo = FondoCampo.BLANCO,
             )
 
             Spacer(Modifier.height(16.dp))
 
             FieldLabel("Contraseña")
-            OutlinedTextField(
+            CampoTexto(
                 value = uiState.contrasena,
                 onValueChange = onContrasenaChange,
                 modifier = Modifier
@@ -172,7 +170,7 @@ private fun LoginContent(
                 leadingIcon = {
                     Icon(Icons.Filled.Lock, contentDescription = null)
                 },
-                placeholder = { Text("********") },
+                placeholder = "********",
                 trailingIcon = {
                     val icono =
                         if (uiState.mostrarContrasena) Icons.Filled.Visibility
@@ -189,8 +187,7 @@ private fun LoginContent(
                     else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 isError = uiState.error != null,
-                shape = RoundedCornerShape(12.dp),
-                colors = ienFieldColors(),
+                fondo = FondoCampo.BLANCO,
             )
 
             if (uiState.error != null) {
@@ -281,19 +278,6 @@ private fun LoginFooter() {
             .padding(bottom = 4.dp),
     )
 }
-
-@Composable
-private fun ienFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = IenPurple,
-    unfocusedBorderColor = IenPurple.copy(alpha = 0.35f),
-    focusedLeadingIconColor = IenPurple,
-    unfocusedLeadingIconColor = IenPurple.copy(alpha = 0.6f),
-    focusedTrailingIconColor = IenPurple,
-    unfocusedTrailingIconColor = IenPurple.copy(alpha = 0.6f),
-    cursorColor = IenPurple,
-    focusedContainerColor = Color.White,
-    unfocusedContainerColor = Color.White,
-)
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable

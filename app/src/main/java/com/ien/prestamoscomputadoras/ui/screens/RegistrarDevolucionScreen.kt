@@ -53,7 +53,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -91,12 +90,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
+import com.ien.prestamoscomputadoras.ui.components.CampoTexto
 import com.ien.prestamoscomputadoras.data.repository.PrestamoEncontrado
 import com.ien.prestamoscomputadoras.ui.components.BackHeader
 import com.ien.prestamoscomputadoras.ui.components.ExitoOverlay
 import com.ien.prestamoscomputadoras.ui.components.FormErrorRed
 import com.ien.prestamoscomputadoras.ui.components.FormLabel
-import com.ien.prestamoscomputadoras.ui.components.lavenderFieldColors
 import com.ien.prestamoscomputadoras.ui.theme.IenCream
 import com.ien.prestamoscomputadoras.ui.theme.IenGreyText
 import com.ien.prestamoscomputadoras.ui.theme.IenLavender
@@ -567,15 +566,13 @@ private fun ConfirmacionDevolucion(
             Spacer(Modifier.height(20.dp))
 
             FormLabel("OBSERVACIONES (OPCIONAL)")
-            OutlinedTextField(
+            CampoTexto(
                 value = uiState.observaciones,
                 onValueChange = onObservacionesChange,
                 enabled = !uiState.isLoading,
                 minLines = 3,
-                placeholder = { Text("Detallar daños, faltantes u observaciones relevantes...") },
+                placeholder = "Detallar daños, faltantes u observaciones relevantes...",
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = lavenderFieldColors(),
             )
 
             if (uiState.errorConfirmacion != null) {
