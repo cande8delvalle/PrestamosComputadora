@@ -1,8 +1,20 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
+
+// Credenciales de Supabase: se leen de local.properties (que NO se sube a Git) y se exponen
+// como BuildConfig.SUPABASE_URL / BuildConfig.SUPABASE_KEY. Solo va la clave publishable;
+// nunca la secret / service_role. Ver local.properties.example.
+val localProperties = Properties().apply {
+    val archivo = rootProject.file("local.properties")
+    if (archivo.exists()) archivo.inputStream().use { load(it) }
+}
+
+fun propiedadLocal(nombre: String): String = localProperties.getProperty(nombre).orEmpty()
 
 android {
     namespace = "com.ien.prestamoscomputadoras"
@@ -18,6 +30,9 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "SUPABASE_URL", "\"${propiedadLocal("SUPABASE_URL")}\"")
+        buildConfigField("String", "SUPABASE_KEY", "\"${propiedadLocal("SUPABASE_KEY")}\"")
     }
 
     buildTypes {
@@ -33,6 +48,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
