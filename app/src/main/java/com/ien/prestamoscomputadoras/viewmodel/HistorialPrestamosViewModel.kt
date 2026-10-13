@@ -8,18 +8,24 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.ien.prestamoscomputadoras.data.AppDatabase
-import com.ien.prestamoscomputadoras.data.dao.PrestamoHistorial
-import com.ien.prestamoscomputadoras.data.entity.Prestamo
+import com.ien.prestamoscomputadoras.data.model.Prestamo
+import com.ien.prestamoscomputadoras.data.model.PrestamoHistorial
 import com.ien.prestamoscomputadoras.data.repository.HistorialRepository
+import com.ien.prestamoscomputadoras.data.repository.SupabaseHistorialRepository
+import com.ien.prestamoscomputadoras.util.ZONA_ARGENTINA
+import com.ien.prestamoscomputadoras.util.enArgentina
+import com.ien.prestamoscomputadoras.util.fechaArgentina
+import com.ien.prestamoscomputadoras.util.horaArgentina
 import com.ien.prestamoscomputadoras.util.tieneDanioEnDevolucion
 import com.ien.prestamoscomputadoras.util.tieneObservacionAlEntregar
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
-import java.util.TimeZone
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlinx.coroutines.launch
+import kotlinx.datetime.DatePeriod
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.isoDayNumber
+import kotlinx.datetime.minus
+import kotlinx.datetime.plus
 
 /** Chips de filtro del historial. Se aplican sobre la fecha del préstamo. */
 enum class FiltroHistorial { HOY, ESTA_SEMANA }
@@ -78,6 +84,8 @@ data class TarjetaHistorial(
 data class HistorialPrestamosUiState(
     val filtro: FiltroHistorial = FiltroHistorial.HOY,
     val cargando: Boolean = true,
+    /** Error al leer de la base (p. ej. sin internet). `null` = sin error. */
+    val error: String? = null,
     /** Todos los préstamos de la semana (lunes → hoy), del más reciente al más antiguo. */
     val tarjetasSemana: List<TarjetaHistorial> = emptyList(),
     /** Inicio del día de hoy (epoch ms), límite del filtro "Hoy". */
@@ -104,18 +112,28 @@ data class HistorialPrestamosUiState(
 class HistorialPrestamosViewModel(
     private val historialRepository: HistorialRepository,
     /** Reloj inyectable para los tests. */
-    private val ahora: () -> Long = System::currentTimeMillis,
+    private val ahora: () -> Instant = Clock.System::now,
 ) : ViewModel() {
 
     var uiState by mutableStateOf(HistorialPrestamosUiState())
         private set
 
     init {
+        cargar()
+    }
+
+    /** Lee de la base los préstamos de la semana. También lo usa el botón "Reintentar". */
+    fun cargar() {
         val rango = rangoSemana(ahora())
-        uiState = uiState.copy(inicioHoy = rango.inicioHoy)
+        uiState = uiState.copy(inicioHoy = rango.inicioHoy.toEpochMilliseconds(), cargando = true, error = null)
         viewModelScope.launch {
-            val filas = historialRepository.listarEntre(rango.inicioLunes, rango.finHoy)
-            uiState = uiState.copy(cargando = false, tarjetasSemana = filas.map { it.aTarjeta() })
+            historialRepository.listarEntre(rango.inicioLunes, rango.finHoy)
+                .onSuccess { filas ->
+                    uiState = uiState.copy(cargando = false, tarjetasSemana = filas.map { it.aTarjeta() })
+                }
+                .onFailure { e ->
+                    uiState = uiState.copy(cargando = false, error = e.message)
+                }
         }
     }
 
@@ -143,77 +161,58 @@ class HistorialPrestamosViewModel(
     }
 
     companion object {
-        /** Crea el ViewModel con su repositorio (Room) a partir del Application. */
+        /** Crea el ViewModel con su repositorio (Supabase). */
         val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                val app = checkNotNull(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
-                HistorialPrestamosViewModel(HistorialRepository(AppDatabase.getInstance(app).historialDao()))
-            }
+            initializer { HistorialPrestamosViewModel(SupabaseHistorialRepository()) }
         }
     }
 }
 
-/** Límites (epoch ms) de los filtros. "Esta semana" = [inicioLunes, finHoy). */
-internal data class RangoSemana(val inicioLunes: Long, val inicioHoy: Long, val finHoy: Long)
-
-/** Calcula los límites en la zona horaria del dispositivo. La semana arranca el lunes. */
-internal fun rangoSemana(ahoraMs: Long): RangoSemana {
-    val cal = Calendar.getInstance().apply {
-        timeInMillis = ahoraMs
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-    }
-    val inicioHoy = cal.timeInMillis
-    // Días desde el lunes: lunes -> 0, ..., domingo -> 6 (Calendar.SUNDAY = 1, MONDAY = 2).
-    val diasDesdeLunes = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7
-    cal.add(Calendar.DAY_OF_MONTH, 1)
-    val finHoy = cal.timeInMillis
-    cal.add(Calendar.DAY_OF_MONTH, -1 - diasDesdeLunes)
-    return RangoSemana(inicioLunes = cal.timeInMillis, inicioHoy = inicioHoy, finHoy = finHoy)
-}
+/** Límites de los filtros. "Esta semana" = [inicioLunes, finHoy). */
+internal data class RangoSemana(val inicioLunes: Instant, val inicioHoy: Instant, val finHoy: Instant)
 
 /**
- * Formatter en la zona horaria del dispositivo. Se crea en cada uso (SimpleDateFormat no es
- * thread-safe) y así además toma la zona vigente si el usuario la cambia.
+ * Calcula los límites en hora de Argentina (no en la del celular ni la del servidor).
+ * La semana arranca el lunes.
  */
-private fun formatoLocal(patron: String) =
-    SimpleDateFormat(patron, Locale.US).apply { timeZone = TimeZone.getDefault() }
+internal fun rangoSemana(ahora: Instant): RangoSemana {
+    val hoy = ahora.enArgentina().date
+    // Días desde el lunes: lunes -> 0, ..., domingo -> 6 (isoDayNumber: lunes = 1).
+    val lunes = hoy.minus(DatePeriod(days = hoy.dayOfWeek.isoDayNumber - 1))
+    return RangoSemana(
+        inicioLunes = lunes.atStartOfDayIn(ZONA_ARGENTINA),
+        inicioHoy = hoy.atStartOfDayIn(ZONA_ARGENTINA),
+        finHoy = hoy.plus(DatePeriod(days = 1)).atStartOfDayIn(ZONA_ARGENTINA),
+    )
+}
 
 /** Arma la tarjeta (y el detalle) de un préstamo. La usan el Historial y "Actividad reciente". */
 internal fun PrestamoHistorial.aTarjeta(): TarjetaHistorial {
-    val formatoFecha = formatoLocal("dd/MM/yyyy")
-    val formatoHora = formatoLocal("HH:mm")
-    val devuelto = prestamo.estado == Prestamo.ESTADO_DEVUELTO
+    val devuelto = estado == Prestamo.ESTADO_DEVUELTO
     return TarjetaHistorial(
-        idPrestamo = prestamo.idPrestamo,
+        idPrestamo = idPrestamo,
         nombreAlumno = "$alumnoNombre $alumnoApellido",
         dniAlumno = formatearDni(alumnoDni),
-        codigoComputadora = codigoComputadora,
-        fechaPrestamo = formatoFecha.format(Date(prestamo.fechaPrestamo)),
-        horaPrestamo = formatoHora.format(Date(prestamo.fechaPrestamo)),
-        horaDevolucion = prestamo.fechaDevolucion
-            ?.takeIf { devuelto }
-            ?.let { formatoHora.format(Date(it)) },
+        codigoComputadora = computadoraCodigo,
+        fechaPrestamo = fechaPrestamo.fechaArgentina(),
+        horaPrestamo = fechaPrestamo.horaArgentina(),
+        horaDevolucion = fechaDevolucion?.takeIf { devuelto }?.horaArgentina(),
         estado = if (devuelto) EstadoPrestamo.DEVUELTO else EstadoPrestamo.ACTIVO,
-        observacionEntrega = prestamo.observacionesIniciales
-            ?.takeIf { tieneObservacionAlEntregar(prestamo) }
+        observacionEntrega = observacionesIniciales
+            ?.takeIf { tieneObservacionAlEntregar(this) }
             ?.trim(),
-        danioDevolucion = revision
-            ?.takeIf { tieneDanioEnDevolucion(prestamo, it) }
-            ?.let {
-                RevisionDevolucion(
-                    enciende = it.enciende,
-                    pantallaOk = it.pantallaOk,
-                    cargador = it.cargador,
-                    observaciones = it.observaciones?.trim()?.ifEmpty { null },
-                )
-            },
-        prestadoPor = "$usuarioPrestamoNombre $usuarioPrestamoApellido",
-        devueltoPor = usuarioDevolucionNombre
-            ?.takeIf { devuelto }
-            ?.let { "$it ${usuarioDevolucionApellido.orEmpty()}".trim() },
-        fechaPrestamoMs = prestamo.fechaPrestamo,
+        danioDevolucion = if (tieneDanioEnDevolucion(this)) {
+            RevisionDevolucion(
+                enciende = enciende ?: true,
+                pantallaOk = pantallaOk ?: true,
+                cargador = cargador ?: true,
+                observaciones = observacionesDevolucion?.trim()?.ifEmpty { null },
+            )
+        } else {
+            null
+        },
+        prestadoPor = prestadoPor,
+        devueltoPor = devueltoPor?.takeIf { devuelto }?.trim(),
+        fechaPrestamoMs = fechaPrestamo.toEpochMilliseconds(),
     )
 }

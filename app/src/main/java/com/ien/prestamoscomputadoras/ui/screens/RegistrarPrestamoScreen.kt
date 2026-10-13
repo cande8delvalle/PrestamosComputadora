@@ -45,8 +45,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ien.prestamoscomputadoras.data.entity.Alumno
-import com.ien.prestamoscomputadoras.data.entity.Computadora
+import com.ien.prestamoscomputadoras.ui.components.MensajeError
+import com.ien.prestamoscomputadoras.data.model.Alumno
+import com.ien.prestamoscomputadoras.data.model.Computadora
 import com.ien.prestamoscomputadoras.ui.components.BackHeader
 import com.ien.prestamoscomputadoras.ui.components.ExitoOverlay
 import com.ien.prestamoscomputadoras.ui.components.FormError
@@ -87,6 +88,7 @@ fun RegistrarPrestamoScreen(
         onObservacionesChange = viewModel::onObservacionesChange,
         onRegistrarClick = viewModel::onRegistrarClick,
         onRealizarOtroClick = viewModel::onRealizarOtroClick,
+        onReintentarCarga = viewModel::cargarListas,
         onVolverAlInicioClick = {
             // Primero se cierra el modal (estado del ViewModel) y después se navega a Home.
             viewModel.onCerrarModalExito()
@@ -100,6 +102,7 @@ fun RegistrarPrestamoScreen(
 @Composable
 private fun RegistrarPrestamoContent(
     uiState: RegistrarPrestamoUiState,
+    onReintentarCarga: () -> Unit = {},
     onAlumnoSeleccionado: (Alumno) -> Unit,
     onComputadoraSeleccionada: (Computadora) -> Unit,
     onObservacionesChange: (String) -> Unit,
@@ -199,11 +202,10 @@ private fun RegistrarPrestamoContent(
 
                 if (uiState.errorGeneral != null) {
                     Spacer(Modifier.height(16.dp))
-                    Text(
-                        text = uiState.errorGeneral,
-                        color = FormErrorRed,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
+                    // Si fallaron las listas (p. ej. sin internet), se ofrece volver a cargarlas.
+                    MensajeError(
+                        texto = uiState.errorGeneral,
+                        onReintentar = if (uiState.errorListas) onReintentarCarga else null,
                     )
                 }
 

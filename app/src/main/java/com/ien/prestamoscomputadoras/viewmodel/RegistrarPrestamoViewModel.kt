@@ -1,6 +1,5 @@
 package com.ien.prestamoscomputadoras.viewmodel
 
-import android.database.sqlite.SQLiteConstraintException
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -9,11 +8,13 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.ien.prestamoscomputadoras.data.AppDatabase
-import com.ien.prestamoscomputadoras.data.entity.Alumno
-import com.ien.prestamoscomputadoras.data.entity.Computadora
-import com.ien.prestamoscomputadoras.data.entity.Prestamo
+import com.ien.prestamoscomputadoras.data.model.Alumno
+import com.ien.prestamoscomputadoras.data.model.Computadora
+import com.ien.prestamoscomputadoras.data.model.NuevoPrestamo
+import com.ien.prestamoscomputadoras.data.remote.ErrorDatos
 import com.ien.prestamoscomputadoras.data.repository.PrestamoRepository
+import com.ien.prestamoscomputadoras.data.repository.RESTRICCION_UN_ACTIVO_POR_COMPUTADORA
+import com.ien.prestamoscomputadoras.data.repository.SupabasePrestamoRepository
 import com.ien.prestamoscomputadoras.util.SesionActual
 import kotlinx.coroutines.launch
 
@@ -21,6 +22,7 @@ const val ERROR_SELECCIONAR_ALUMNO = "Debés seleccionar un alumno"
 const val ERROR_SELECCIONAR_COMPUTADORA = "Debés seleccionar una computadora"
 const val ERROR_SIN_SESION = "No hay una sesión iniciada. Volvé a iniciar sesión."
 const val ERROR_GUARDAR_PRESTAMO = "No se pudo registrar el préstamo. Intentá de nuevo."
+const val ERROR_COMPUTADORA_YA_PRESTADA = "Esa computadora ya está prestada. Elegí otra."
 
 /** Estado de la pantalla "Nuevo Préstamo". Inmutable: se regenera con [copy]. */
 data class RegistrarPrestamoUiState(
@@ -37,16 +39,17 @@ data class RegistrarPrestamoUiState(
     val errorGeneral: String? = null,
     val isLoading: Boolean = false,
     val mostrarModalExito: Boolean = false,
+    /** `true` si no se pudieron cargar las listas (p. ej. sin internet). */
+    val errorListas: Boolean = false,
 ) {
+    /** Solo si las listas se cargaron bien: un error de red no es "no hay computadoras". */
     val sinComputadorasDisponibles: Boolean
-        get() = !cargandoListas && computadorasDisponibles.isEmpty()
+        get() = !cargandoListas && !errorListas && computadorasDisponibles.isEmpty()
 }
 
 /** ViewModel de [com.ien.prestamoscomputadoras.ui.screens.RegistrarPrestamoScreen]. */
 class RegistrarPrestamoViewModel(
     private val prestamoRepository: PrestamoRepository,
-    /** Reloj del dispositivo (epoch ms) para la fecha del préstamo. Inyectable para los tests. */
-    private val ahora: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
 
     var uiState by mutableStateOf(RegistrarPrestamoUiState())
@@ -56,14 +59,19 @@ class RegistrarPrestamoViewModel(
         cargarListas()
     }
 
-    private fun cargarListas() {
+    /** Lee alumnos y computadoras libres. También lo usa el botón "Reintentar". */
+    fun cargarListas() {
+        uiState = uiState.copy(cargandoListas = true, errorListas = false, errorGeneral = null)
         viewModelScope.launch {
             val alumnos = prestamoRepository.listarAlumnos()
             val computadoras = prestamoRepository.listarComputadorasDisponibles()
+            val error = alumnos.exceptionOrNull() ?: computadoras.exceptionOrNull()
             uiState = uiState.copy(
-                alumnos = alumnos,
-                computadorasDisponibles = computadoras,
+                alumnos = alumnos.getOrDefault(emptyList()),
+                computadorasDisponibles = computadoras.getOrDefault(emptyList()),
                 cargandoListas = false,
+                errorListas = error != null,
+                errorGeneral = error?.message,
             )
         }
     }
@@ -85,8 +93,10 @@ class RegistrarPrestamoViewModel(
      * 1. Sin alumno -> [ERROR_SELECCIONAR_ALUMNO]; sin computadora -> [ERROR_SELECCIONAR_COMPUTADORA].
      *    Se muestran los dos a la vez si faltan ambos.
      * 2. Sin usuario en [SesionActual] -> [ERROR_SIN_SESION] (no se puede guardar el FK).
-     * 3. Si todo pasa, se inserta el préstamo ACTIVO con la fecha/hora del dispositivo en
-     *    este momento (no es un campo del formulario) y se muestra el modal de éxito.
+     * 3. Si todo pasa, se inserta el préstamo ACTIVO (la fecha/hora la pone el servidor) y se
+     *    muestra el modal de éxito. Si la base avisa que la computadora ya está prestada (otro
+     *    celular la prestó recién), se muestra [ERROR_COMPUTADORA_YA_PRESTADA] y se recargan
+     *    las listas.
      */
     fun onRegistrarClick() {
         val s = uiState
@@ -106,27 +116,29 @@ class RegistrarPrestamoViewModel(
             return
         }
 
-        val prestamo = Prestamo(
+        val prestamo = NuevoPrestamo(
             idAlumno = s.alumnoSeleccionado!!.idAlumno,
             idComputadora = s.computadoraSeleccionada!!.idComputadora,
             idUsuarioPrestamo = usuarioId,
-            fechaPrestamo = ahora(),
-            fechaDevolucion = null,
-            estado = Prestamo.ESTADO_ACTIVO,
             observacionesIniciales = s.observacionesIniciales.trim().ifEmpty { null },
         )
 
         uiState = s.copy(isLoading = true, errorGeneral = null)
         viewModelScope.launch {
-            try {
-                prestamoRepository.insertar(prestamo)
-                uiState = uiState.copy(mostrarModalExito = true)
-            } catch (e: SQLiteConstraintException) {
-                // Algún FK ya no existe (p. ej. se borró la base con el admin logueado).
-                uiState = uiState.copy(errorGeneral = ERROR_GUARDAR_PRESTAMO)
-            } finally {
-                uiState = uiState.copy(isLoading = false)
-            }
+            prestamoRepository.insertar(prestamo)
+                .onSuccess { uiState = uiState.copy(isLoading = false, mostrarModalExito = true) }
+                .onFailure { e ->
+                    if (e is ErrorDatos.Duplicado && e.restriccion == RESTRICCION_UN_ACTIVO_POR_COMPUTADORA) {
+                        uiState = uiState.copy(isLoading = false, computadoraSeleccionada = null)
+                        cargarListas()
+                        uiState = uiState.copy(errorComputadora = ERROR_COMPUTADORA_YA_PRESTADA)
+                    } else {
+                        uiState = uiState.copy(
+                            isLoading = false,
+                            errorGeneral = if (e is ErrorDatos.Otro) ERROR_GUARDAR_PRESTAMO else e.message,
+                        )
+                    }
+                }
         }
     }
 
@@ -146,15 +158,9 @@ class RegistrarPrestamoViewModel(
     }
 
     companion object {
-        /** Crea el ViewModel con su repositorio (Room) a partir del Application. */
+        /** Crea el ViewModel con su repositorio (Supabase). */
         val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                val app = checkNotNull(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
-                val db = AppDatabase.getInstance(app)
-                RegistrarPrestamoViewModel(
-                    PrestamoRepository(db.prestamoDao(), db.computadoraDao(), db.alumnoDao()),
-                )
-            }
+            initializer { RegistrarPrestamoViewModel(SupabasePrestamoRepository()) }
         }
     }
 }

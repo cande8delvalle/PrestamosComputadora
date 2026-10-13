@@ -42,6 +42,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ien.prestamoscomputadoras.ui.components.MensajeError
 import com.ien.prestamoscomputadoras.data.Permiso
 import com.ien.prestamoscomputadoras.ui.components.BackHeader
 import com.ien.prestamoscomputadoras.ui.theme.IenCream
@@ -130,6 +131,13 @@ private fun RolesPermisosContent(
                 }
 
                 AyudaTab(uiState.tab)
+
+                uiState.error?.let { error ->
+                    MensajeError(
+                        texto = error,
+                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
+                    )
+                }
 
                 LazyColumn(
                     modifier = Modifier

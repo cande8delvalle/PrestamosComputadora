@@ -8,9 +8,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.ien.prestamoscomputadoras.data.AppDatabase
 import com.ien.prestamoscomputadoras.data.Permiso
 import com.ien.prestamoscomputadoras.data.repository.PermisosRepository
+import com.ien.prestamoscomputadoras.data.repository.SupabasePermisosRepository
 import com.ien.prestamoscomputadoras.util.SesionActual
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -37,6 +37,8 @@ data class RolesPermisosUiState(
     /** Solo el Admin puede ver y editar esta pantalla. */
     val esAdmin: Boolean = false,
     val permisosPersonal: Set<Permiso> = emptySet(),
+    /** Error al guardar un permiso (sin internet, sin permiso). `null` = sin error. */
+    val error: String? = null,
 ) {
     val items: List<PermisoItem>
         get() = when (tab) {
@@ -87,20 +89,18 @@ class RolesPermisosViewModel(
         val s = uiState
         if (!s.esAdmin || s.tab != RolTab.PERSONAL || permiso.soloAdmin) return
         val habilitar = permiso !in s.permisosPersonal
+        uiState = s.copy(error = null)
         viewModelScope.launch {
             permisosRepository.cambiarPermisoPersonal(permiso, habilitar)
+                .onFailure { e -> uiState = uiState.copy(error = e.message) }
         }
     }
 
     companion object {
-        /** Crea el ViewModel con su repositorio (Room) y el usuario de la sesión actual. */
+        /** Crea el ViewModel con su repositorio (Supabase) y el usuario de la sesión actual. */
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                val app = checkNotNull(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
-                RolesPermisosViewModel(
-                    PermisosRepository(AppDatabase.getInstance(app).rolDao()),
-                    idUsuario = SesionActual.usuarioId,
-                )
+                RolesPermisosViewModel(SupabasePermisosRepository(), idUsuario = SesionActual.usuarioId)
             }
         }
     }

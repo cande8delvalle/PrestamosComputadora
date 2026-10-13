@@ -35,10 +35,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ien.prestamoscomputadoras.data.Permiso
 import com.ien.prestamoscomputadoras.ui.components.DetallePrestamoSheet
+import com.ien.prestamoscomputadoras.ui.components.MensajeError
 import com.ien.prestamoscomputadoras.ui.components.QuickActionCard
 import com.ien.prestamoscomputadoras.ui.components.RecentActivityItem
 import com.ien.prestamoscomputadoras.ui.components.StatCard
@@ -79,8 +81,18 @@ fun HomeScreen(
     onLogoutClick: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Mientras Home se ve (STARTED) lee los datos y escucha los cambios en vivo (Realtime).
+    // Al abrir otra pantalla o pasar la app a segundo plano (STOPPED) se cierra la suscripción;
+    // al volver, se vuelve a leer todo (así aparece lo que se registró en otra pantalla).
+    LifecycleStartEffect(viewModel) {
+        viewModel.onPantallaVisible()
+        onStopOrDispose { viewModel.onPantallaOculta() }
+    }
+
     HomeContent(
         uiState = uiState,
+        onReintentar = viewModel::reintentar,
         onRegistrarAlumnoClick = onRegistrarAlumnoClick,
         onRegistrarComputadoraClick = onRegistrarComputadoraClick,
         onNuevoPrestamoClick = onNuevoPrestamoClick,
@@ -102,6 +114,7 @@ fun HomeScreen(
 private fun HomeContent(
     uiState: HomeUiState,
     onActividadClick: (ActividadReciente) -> Unit,
+    onReintentar: () -> Unit = {},
     onRegistrarAlumnoClick: () -> Unit,
     onRegistrarComputadoraClick: () -> Unit,
     onNuevoPrestamoClick: () -> Unit,
@@ -130,6 +143,11 @@ private fun HomeContent(
                 .padding(horizontal = 20.dp),
         ) {
             Spacer(Modifier.height(20.dp))
+
+            uiState.error?.let { error ->
+                MensajeError(texto = error, onReintentar = onReintentar)
+                Spacer(Modifier.height(12.dp))
+            }
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 StatCard(

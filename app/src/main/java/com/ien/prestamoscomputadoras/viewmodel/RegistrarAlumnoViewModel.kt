@@ -1,6 +1,5 @@
 package com.ien.prestamoscomputadoras.viewmodel
 
-import android.database.sqlite.SQLiteConstraintException
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -9,9 +8,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.ien.prestamoscomputadoras.data.AppDatabase
-import com.ien.prestamoscomputadoras.data.entity.Alumno
+import com.ien.prestamoscomputadoras.data.model.Alumno
+import com.ien.prestamoscomputadoras.data.remote.ErrorDatos
 import com.ien.prestamoscomputadoras.data.repository.AlumnoRepository
+import com.ien.prestamoscomputadoras.data.repository.SupabaseAlumnoRepository
 import kotlinx.coroutines.launch
 
 const val ERROR_DNI_ALUMNO_DUPLICADO = "Ya existe un alumno registrado con este DNI"
@@ -32,6 +32,8 @@ data class RegistrarAlumnoUiState(
     val isLoading: Boolean = false,
     /** Cuando es `true`, la pantalla muestra el modal de "Alumno Registrado Correctamente". */
     val mostrarModalExito: Boolean = false,
+    /** Error que no es de un campo (sin internet, sin permiso de Admin). */
+    val errorGeneral: String? = null,
 )
 
 /** ViewModel de [com.ien.prestamoscomputadoras.ui.screens.RegistrarAlumnoScreen]. */
@@ -82,24 +84,29 @@ class RegistrarAlumnoViewModel(
             return
         }
 
-        uiState = s.copy(isLoading = true)
+        uiState = s.copy(isLoading = true, errorGeneral = null)
         viewModelScope.launch {
-            try {
-                if (alumnoRepository.buscarPorDni(s.dni) != null) {
-                    uiState = uiState.copy(errorDni = ERROR_DNI_ALUMNO_DUPLICADO)
-                    return@launch
-                }
-                alumnoRepository.insertar(
-                    Alumno(nombre = s.nombre.trim(), apellido = s.apellido.trim(), dni = s.dni),
-                )
-                uiState = uiState.copy(mostrarModalExito = true)
-            } catch (e: SQLiteConstraintException) {
-                // Solo ocurre si la tabla tiene un índice único sobre dni y otro alta se
-                // coló entre la búsqueda y el insert.
-                uiState = uiState.copy(errorDni = ERROR_DNI_ALUMNO_DUPLICADO)
-            } finally {
-                uiState = uiState.copy(isLoading = false)
+            val existente = alumnoRepository.buscarPorDni(s.dni).getOrElse { e ->
+                uiState = uiState.copy(isLoading = false, errorGeneral = e.message)
+                return@launch
             }
+            if (existente != null) {
+                uiState = uiState.copy(isLoading = false, errorDni = ERROR_DNI_ALUMNO_DUPLICADO)
+                return@launch
+            }
+            alumnoRepository.insertar(
+                Alumno(nombre = s.nombre.trim(), apellido = s.apellido.trim(), dni = s.dni),
+            )
+                .onSuccess { uiState = uiState.copy(isLoading = false, mostrarModalExito = true) }
+                .onFailure { e ->
+                    uiState = if (e is ErrorDatos.Duplicado) {
+                        // Otra alta con el mismo DNI se coló entre la búsqueda y el insert.
+                        uiState.copy(isLoading = false, errorDni = ERROR_DNI_ALUMNO_DUPLICADO)
+                    } else {
+                        // Incluye ErrorDatos.SinPermiso: la base (RLS) solo deja escribir al Admin.
+                        uiState.copy(isLoading = false, errorGeneral = e.message)
+                    }
+                }
         }
     }
 
@@ -114,12 +121,9 @@ class RegistrarAlumnoViewModel(
     }
 
     companion object {
-        /** Crea el ViewModel con su repositorio (Room) a partir del Application. */
+        /** Crea el ViewModel con su repositorio (Supabase). */
         val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                val app = checkNotNull(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
-                RegistrarAlumnoViewModel(AlumnoRepository(AppDatabase.getInstance(app).alumnoDao()))
-            }
+            initializer { RegistrarAlumnoViewModel(SupabaseAlumnoRepository()) }
         }
     }
 }

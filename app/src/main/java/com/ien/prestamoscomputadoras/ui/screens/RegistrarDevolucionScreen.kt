@@ -108,6 +108,7 @@ import com.ien.prestamoscomputadoras.viewmodel.RegistrarDevolucionUiState
 import com.ien.prestamoscomputadoras.viewmodel.RegistrarDevolucionViewModel
 import com.ien.prestamoscomputadoras.viewmodel.formatearDni
 import com.ien.prestamoscomputadoras.viewmodel.formatearFechaHoraDevolucion
+import kotlin.time.Instant
 
 /** Fondo y tono del cartel de advertencia. */
 private val AdvertenciaFondo = Color(0xFFFFF3CC)
@@ -731,7 +732,7 @@ private fun ConfirmacionDevolucionPreview() {
         nombreAlumno = "María Gonzales",
         dniAlumno = "46111222",
         codigoComputadora = "PC-12",
-        fechaPrestamo = 1_782_320_400_000,
+        fechaPrestamo = Instant.fromEpochMilliseconds(1_782_320_400_000),
     )
     PrestamosComputadorasTheme {
         ConfirmacionDevolucion(

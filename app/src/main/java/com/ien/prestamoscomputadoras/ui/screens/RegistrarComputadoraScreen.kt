@@ -30,6 +30,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ien.prestamoscomputadoras.ui.components.MensajeError
 import com.ien.prestamoscomputadoras.ui.components.BackHeader
 import com.ien.prestamoscomputadoras.ui.components.ExitoOverlay
 import com.ien.prestamoscomputadoras.ui.components.FormError
@@ -147,6 +148,11 @@ private fun RegistrarComputadoraContent(
                 }
 
                 Spacer(Modifier.height(24.dp))
+
+                uiState.errorGeneral?.let { error ->
+                    MensajeError(texto = error)
+                    Spacer(Modifier.height(12.dp))
+                }
 
                 Button(
                     onClick = onRegistrarClick,

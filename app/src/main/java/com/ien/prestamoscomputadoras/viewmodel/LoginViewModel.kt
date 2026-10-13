@@ -8,12 +8,14 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.ien.prestamoscomputadoras.data.AppDatabase
+import com.ien.prestamoscomputadoras.data.remote.ErrorDatos
+import com.ien.prestamoscomputadoras.data.repository.SupabaseUsuarioRepository
 import com.ien.prestamoscomputadoras.data.repository.UsuarioRepository
 import com.ien.prestamoscomputadoras.util.SesionActual
 import kotlinx.coroutines.launch
 
 const val ERROR_LOGIN_CREDENCIALES = "Usuario o contraseña incorrectos."
+const val ERROR_LOGIN_EMAIL = "Ingresá tu correo electrónico (con el nombre de usuario ya no se puede entrar)."
 
 /**
  * Estado local de la pantalla de inicio de sesión.
@@ -33,8 +35,8 @@ data class LoginUiState(
 /**
  * ViewModel de [com.ien.prestamoscomputadoras.ui.screens.LoginScreen].
  *
- * Valida el formulario y autentica contra Room (nombre de usuario o email + hash de la
- * contraseña).
+ * Valida el formulario e inicia sesión en Supabase Auth con email y contraseña. Supabase
+ * guarda la sesión en el teléfono: la próxima vez que se abra la app, el Splash la restaura.
  */
 class LoginViewModel(
     private val usuarioRepository: UsuarioRepository,
@@ -58,7 +60,7 @@ class LoginViewModel(
 
     /**
      * Valida el formulario y autentica. Si algo no cumple, escribe el mensaje en
-     * [LoginUiState.error]. Si las credenciales son correctas, guarda el usuario en
+     * [LoginUiState.error]. Si las credenciales son correctas, guarda el perfil en
      * [SesionActual] e invoca [onLoginExitoso] (la UI navega a Home).
      */
     fun onLoginClick(onLoginExitoso: () -> Unit) {
@@ -69,6 +71,9 @@ class LoginViewModel(
         val error = when {
             usuario.isEmpty() || contrasena.isEmpty() ->
                 "Completá el usuario y la contraseña."
+            // Supabase Auth entra con email. Buscar el email a partir del nombre de usuario
+            // no se puede: sin sesión, la base no deja leer la tabla perfil (RLS).
+            "@" !in usuario -> ERROR_LOGIN_EMAIL
             else -> null
         }
 
@@ -79,27 +84,23 @@ class LoginViewModel(
 
         uiState = uiState.copy(isLoading = true)
         viewModelScope.launch {
-            try {
-                val cuenta = usuarioRepository.autenticar(usuario, contrasena)
-                if (cuenta == null) {
-                    uiState = uiState.copy(error = ERROR_LOGIN_CREDENCIALES)
-                    return@launch
+            usuarioRepository.iniciarSesion(usuario.lowercase(), contrasena)
+                .onSuccess { perfil ->
+                    uiState = uiState.copy(isLoading = false)
+                    SesionActual.usuarioId = perfil.idPerfil
+                    onLoginExitoso()
                 }
-                SesionActual.usuarioId = cuenta.idUsuario
-                onLoginExitoso()
-            } finally {
-                uiState = uiState.copy(isLoading = false)
-            }
+                .onFailure { e ->
+                    val mensaje = if (e is ErrorDatos.CredencialesInvalidas) ERROR_LOGIN_CREDENCIALES else e.message
+                    uiState = uiState.copy(isLoading = false, error = mensaje)
+                }
         }
     }
 
     companion object {
-        /** Crea el ViewModel con su repositorio (Room) a partir del Application. */
+        /** Crea el ViewModel con su repositorio (Supabase). */
         val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                val app = checkNotNull(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
-                LoginViewModel(UsuarioRepository(AppDatabase.getInstance(app).usuarioDao()))
-            }
+            initializer { LoginViewModel(SupabaseUsuarioRepository()) }
         }
     }
 }

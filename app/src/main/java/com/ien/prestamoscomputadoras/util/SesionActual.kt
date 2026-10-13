@@ -1,12 +1,22 @@
 package com.ien.prestamoscomputadoras.util
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+
 /**
- * Usuario con la sesión iniciada. Se setea en el login y se limpia en el logout.
+ * Perfil con la sesión iniciada (id_perfil). Se setea en el login (o al restaurar la sesión en
+ * el Splash) y se limpia en el logout.
  *
- * Vive solo en memoria: si Android mata el proceso, al volver la sesión queda en `null`
- * aunque la app reabra en Home.
+ * La sesión en sí (el token) la guarda Supabase Auth en el teléfono: si Android mata el
+ * proceso, al volver a abrir la app el Splash la restaura y vuelve a llenar [usuarioId].
  */
 object SesionActual {
     @Volatile
     var usuarioId: Long? = null
+
+    /**
+     * Scope que vive mientras viva la app, para tareas que no deben cortarse al cerrar una
+     * pantalla (p. ej. avisarle a Supabase que se cerró la sesión).
+     */
+    val scope = CoroutineScope(SupervisorJob())
 }

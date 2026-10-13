@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ien.prestamoscomputadoras.ui.components.AlertaPrestamoSheet
 import com.ien.prestamoscomputadoras.ui.components.DetallePrestamoSheet
+import com.ien.prestamoscomputadoras.ui.components.MensajeError
 import com.ien.prestamoscomputadoras.ui.components.AmbarObservacion
 import com.ien.prestamoscomputadoras.ui.components.BackHeader
 import com.ien.prestamoscomputadoras.ui.components.RojoDanio
@@ -86,6 +87,7 @@ fun HistorialPrestamosScreen(
         onAlertaClick = viewModel::onAlertaClick,
         onTarjetaClick = viewModel::onTarjetaClick,
         onVolverClick = onVolverClick,
+        onReintentar = viewModel::cargar,
         modifier = modifier,
     )
 
@@ -105,6 +107,7 @@ private fun HistorialPrestamosContent(
     onTarjetaClick: (TarjetaHistorial) -> Unit,
     onVolverClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onReintentar: () -> Unit = {},
 ) {
     val tarjetas = uiState.tarjetas
 
@@ -133,7 +136,7 @@ private fun HistorialPrestamosContent(
                 onClick = { onFiltroSeleccionado(FiltroHistorial.ESTA_SEMANA) },
             )
             Spacer(Modifier.weight(1f))
-            if (!uiState.cargando) {
+            if (!uiState.cargando && uiState.error == null) {
                 Text(
                     text = "${tarjetas.size} Registros",
                     color = IenGreyText,
@@ -150,6 +153,12 @@ private fun HistorialPrestamosContent(
             ) {
                 CircularProgressIndicator(color = IenPurple)
             }
+
+            uiState.error != null -> MensajeError(
+                texto = uiState.error,
+                onReintentar = onReintentar,
+                modifier = Modifier.padding(horizontal = 20.dp),
+            )
 
             tarjetas.isEmpty() -> Box(
                 modifier = Modifier

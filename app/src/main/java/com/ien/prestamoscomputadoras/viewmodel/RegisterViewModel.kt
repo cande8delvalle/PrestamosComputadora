@@ -8,10 +8,11 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.ien.prestamoscomputadoras.data.AppDatabase
-import com.ien.prestamoscomputadoras.data.entity.Usuario
+import com.ien.prestamoscomputadoras.data.remote.ErrorDatos
+import com.ien.prestamoscomputadoras.data.repository.DatosRegistro
+import com.ien.prestamoscomputadoras.data.repository.RESTRICCION_NOMBRE_USUARIO
+import com.ien.prestamoscomputadoras.data.repository.SupabaseUsuarioRepository
 import com.ien.prestamoscomputadoras.data.repository.UsuarioRepository
-import com.ien.prestamoscomputadoras.util.hashPassword
 import kotlinx.coroutines.launch
 
 /** Mensajes de error usados por la pantalla de registro. */
@@ -64,12 +65,15 @@ data class RegisterUiState(
     val mostrarModalExito: Boolean = false,
     /** `true` mientras se guarda en la base (evita altas duplicadas por doble toque). */
     val isLoading: Boolean = false,
+    /** Error que no es de un campo puntual (sin internet, error del servidor). */
+    val errorGeneral: String? = null,
 )
 
 /**
  * ViewModel de [com.ien.prestamoscomputadoras.ui.screens.RegisterScreen].
  *
- * Mantiene el estado del formulario, lo valida y guarda el usuario en Room.
+ * Mantiene el estado del formulario, lo valida y crea la cuenta en Supabase Auth (el perfil
+ * lo crea un trigger de la base).
  */
 class RegisterViewModel(
     private val usuarioRepository: UsuarioRepository,
@@ -151,8 +155,9 @@ class RegisterViewModel(
      * 4. Si hay campos vacíos, se prioriza el error de obligatorio; los chequeos de formato
      *    y de coincidencia solo corren sobre campos con contenido.
      * 5. Se evalúan TODOS los campos y se muestran todos los errores a la vez.
-     * 6. Si todo pasa, se verifica que el nombre de usuario y el correo no estén en uso,
-     *    se guarda el usuario (con la contraseña hasheada) y se muestra el modal.
+     * 6. Si todo pasa, se crea la cuenta. Si el nombre de usuario o el correo ya están en uso,
+     *    lo avisa la base (sin sesión no se pueden consultar antes) y se muestra debajo del
+     *    campo. Si sale bien, se muestra el modal.
      */
     fun onCrearCuentaClick() {
         val s = uiState
@@ -193,35 +198,28 @@ class RegisterViewModel(
         // El correo se guarda en minúscula: el login por email lo busca así.
         val correo = s.correo.trim().lowercase()
 
-        uiState = s.copy(errores = RegisterFieldErrors(), isLoading = true)
+        uiState = s.copy(errores = RegisterFieldErrors(), errorGeneral = null, isLoading = true)
         viewModelScope.launch {
-            try {
-                val erroresEnUso = RegisterFieldErrors(
-                    nombreUsuario = if (usuarioRepository.existeNombreUsuario(nombreUsuario)) {
-                        ERROR_NOMBRE_USUARIO_EN_USO
-                    } else {
-                        null
-                    },
-                    correo = if (usuarioRepository.existeEmail(correo)) ERROR_CORREO_EN_USO else null,
-                )
-                if (erroresEnUso.hayAlguno) {
-                    uiState = uiState.copy(errores = erroresEnUso)
-                    return@launch
+            val datos = DatosRegistro(
+                nombre = s.nombre.trim(),
+                apellido = s.apellido.trim(),
+                nombreUsuario = nombreUsuario,
+                dni = s.dni,
+                email = correo,
+            )
+            usuarioRepository.registrar(datos, s.contrasena)
+                .onSuccess { uiState = uiState.copy(isLoading = false, mostrarModalExito = true) }
+                .onFailure { e ->
+                    uiState = when {
+                        e is ErrorDatos.Duplicado && e.restriccion == RESTRICCION_NOMBRE_USUARIO ->
+                            uiState.copy(errores = RegisterFieldErrors(nombreUsuario = ERROR_NOMBRE_USUARIO_EN_USO))
+                        e is ErrorDatos.EmailEnUso ->
+                            uiState.copy(errores = RegisterFieldErrors(correo = ERROR_CORREO_EN_USO))
+                        e is ErrorDatos.ContrasenaDebil ->
+                            uiState.copy(errores = RegisterFieldErrors(contrasena = e.message))
+                        else -> uiState.copy(errorGeneral = e.message)
+                    }.copy(isLoading = false)
                 }
-                usuarioRepository.registrar(
-                    Usuario(
-                        nombre = s.nombre.trim(),
-                        apellido = s.apellido.trim(),
-                        nombreUsuario = nombreUsuario,
-                        dni = s.dni,
-                        email = correo,
-                        contrasenaHash = hashPassword(s.contrasena),
-                    ),
-                )
-                uiState = uiState.copy(mostrarModalExito = true)
-            } finally {
-                uiState = uiState.copy(isLoading = false)
-            }
         }
     }
 
@@ -234,12 +232,9 @@ class RegisterViewModel(
     }
 
     companion object {
-        /** Crea el ViewModel con su repositorio (Room) a partir del Application. */
+        /** Crea el ViewModel con su repositorio (Supabase). */
         val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                val app = checkNotNull(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
-                RegisterViewModel(UsuarioRepository(AppDatabase.getInstance(app).usuarioDao()))
-            }
+            initializer { RegisterViewModel(SupabaseUsuarioRepository()) }
         }
     }
 }

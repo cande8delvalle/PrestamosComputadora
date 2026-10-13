@@ -53,6 +53,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ien.prestamoscomputadoras.ui.components.MensajeError
 import com.ien.prestamoscomputadoras.ui.components.AppHeader
 import com.ien.prestamoscomputadoras.ui.theme.IenCream
 import com.ien.prestamoscomputadoras.ui.theme.IenGreyText
@@ -237,6 +238,11 @@ private fun RegisterContent(
                 )
 
                 Spacer(Modifier.height(20.dp))
+
+                uiState.errorGeneral?.let { error ->
+                    MensajeError(texto = error)
+                    Spacer(Modifier.height(12.dp))
+                }
 
                 Button(
                     onClick = onCrearCuentaClick,
