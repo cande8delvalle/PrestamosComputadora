@@ -18,7 +18,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -53,6 +53,7 @@ import com.ien.prestamoscomputadoras.ui.theme.IenGreyText
 import com.ien.prestamoscomputadoras.ui.theme.IenPurple
 import com.ien.prestamoscomputadoras.ui.theme.IenYellow
 import com.ien.prestamoscomputadoras.ui.theme.PrestamosComputadorasTheme
+import com.ien.prestamoscomputadoras.viewmodel.ERROR_LOGIN_EMAIL_FORMATO
 import com.ien.prestamoscomputadoras.viewmodel.LoginUiState
 import com.ien.prestamoscomputadoras.viewmodel.LoginViewModel
 
@@ -76,7 +77,7 @@ fun LoginScreen(
 
     LoginContent(
         uiState = uiState,
-        onUsuarioChange = viewModel::onUsuarioChange,
+        onEmailChange = viewModel::onEmailChange,
         onContrasenaChange = viewModel::onContrasenaChange,
         onToggleMostrarContrasena = viewModel::onToggleMostrarContrasena,
         onLoginClick = {
@@ -95,7 +96,7 @@ fun LoginScreen(
 @Composable
 private fun LoginContent(
     uiState: LoginUiState,
-    onUsuarioChange: (String) -> Unit,
+    onEmailChange: (String) -> Unit,
     onContrasenaChange: (String) -> Unit,
     onToggleMostrarContrasena: () -> Unit,
     onLoginClick: () -> Unit,
@@ -137,21 +138,22 @@ private fun LoginContent(
 
             Spacer(Modifier.height(28.dp))
 
-            FieldLabel("Usuario")
-            // ContentType le dice al framework de Autofill qué es cada campo. Usuario + Password
-            // en la misma pantalla es lo que lo reconoce como formulario de login.
+            FieldLabel("Correo electrónico")
+            // ContentType le dice al framework de Autofill qué es cada campo. Username + Password
+            // en la misma pantalla es lo que lo reconoce como formulario de login (el "username"
+            // de esta app es el correo), así ofrece guardar y completar las credenciales.
             OutlinedTextField(
-                value = uiState.usuario,
-                onValueChange = onUsuarioChange,
+                value = uiState.email,
+                onValueChange = onEmailChange,
                 modifier = Modifier
                     .fillMaxWidth()
                     .semantics { contentType = ContentType.Username },
                 singleLine = true,
                 leadingIcon = {
-                    Icon(Icons.Filled.Person, contentDescription = null)
+                    Icon(Icons.Filled.Email, contentDescription = null)
                 },
-                placeholder = { Text("Ingresá tu usuario") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                placeholder = { Text("Ingresá tu correo electrónico") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 isError = uiState.error != null,
                 shape = RoundedCornerShape(12.dp),
                 colors = ienFieldColors(),
@@ -299,7 +301,7 @@ private fun LoginScreenPreview() {
     PrestamosComputadorasTheme {
         LoginContent(
             uiState = LoginUiState(),
-            onUsuarioChange = {},
+            onEmailChange = {},
             onContrasenaChange = {},
             onToggleMostrarContrasena = {},
             onLoginClick = {},
@@ -314,11 +316,11 @@ private fun LoginScreenErrorPreview() {
     PrestamosComputadorasTheme {
         LoginContent(
             uiState = LoginUiState(
-                usuario = "",
+                email = "",
                 contrasena = "123",
-                error = "Completá el usuario y la contraseña.",
+                error = ERROR_LOGIN_EMAIL_FORMATO,
             ),
-            onUsuarioChange = {},
+            onEmailChange = {},
             onContrasenaChange = {},
             onToggleMostrarContrasena = {},
             onLoginClick = {},

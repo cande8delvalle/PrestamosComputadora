@@ -13,6 +13,7 @@ import com.ien.prestamoscomputadoras.data.repository.DatosRegistro
 import com.ien.prestamoscomputadoras.data.repository.RESTRICCION_NOMBRE_USUARIO
 import com.ien.prestamoscomputadoras.data.repository.SupabaseUsuarioRepository
 import com.ien.prestamoscomputadoras.data.repository.UsuarioRepository
+import com.ien.prestamoscomputadoras.util.esCorreoValido
 import kotlinx.coroutines.launch
 
 /** Mensajes de error usados por la pantalla de registro. */
@@ -26,8 +27,6 @@ const val ERROR_CORREO_EN_USO = "Ya existe una cuenta con este correo"
 /** DNI: solo dígitos ASCII (sin puntos, guiones, espacios ni letras). */
 private val DNI_REGEX = Regex("^[0-9]+$")
 
-/** Correo: usuario@dominio.extensión (extensión de al menos 2 letras). */
-private val CORREO_REGEX = Regex("""^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$""")
 
 /**
  * Errores por campo del formulario de registro.
@@ -173,7 +172,7 @@ class RegisterViewModel(
             ?: if (DNI_REGEX.matches(valor)) null else ERROR_DNI_FORMATO
 
         fun correo(valor: String) = obligatorio(valor)
-            ?: if (CORREO_REGEX.matches(valor.trim())) null else ERROR_CORREO_FORMATO
+            ?: if (esCorreoValido(valor)) null else ERROR_CORREO_FORMATO
 
         var errores = RegisterFieldErrors(
             nombre = obligatorio(s.nombre),

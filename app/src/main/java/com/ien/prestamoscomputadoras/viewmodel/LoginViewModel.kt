@@ -12,10 +12,13 @@ import com.ien.prestamoscomputadoras.data.remote.ErrorDatos
 import com.ien.prestamoscomputadoras.data.repository.SupabaseUsuarioRepository
 import com.ien.prestamoscomputadoras.data.repository.UsuarioRepository
 import com.ien.prestamoscomputadoras.util.SesionActual
+import com.ien.prestamoscomputadoras.util.esCorreoValido
 import kotlinx.coroutines.launch
 
-const val ERROR_LOGIN_CREDENCIALES = "Usuario o contraseña incorrectos."
-const val ERROR_LOGIN_EMAIL = "Ingresá tu correo electrónico (con el nombre de usuario ya no se puede entrar)."
+const val ERROR_LOGIN_EMAIL_VACIO = "Ingresá tu correo electrónico."
+const val ERROR_LOGIN_EMAIL_FORMATO = "El correo electrónico no tiene un formato válido."
+const val ERROR_LOGIN_CONTRASENA_VACIA = "Ingresá tu contraseña."
+const val ERROR_LOGIN_CREDENCIALES = "Correo o contraseña incorrectos."
 
 /**
  * Estado local de la pantalla de inicio de sesión.
@@ -23,12 +26,12 @@ const val ERROR_LOGIN_EMAIL = "Ingresá tu correo electrónico (con el nombre de
  * Es inmutable: el ViewModel genera un nuevo [LoginUiState] con [copy] en cada cambio.
  */
 data class LoginUiState(
-    val usuario: String = "",
+    val email: String = "",
     val contrasena: String = "",
     val mostrarContrasena: Boolean = false,
     /** Mensaje de error a mostrar bajo el formulario. `null` = sin error. */
     val error: String? = null,
-    /** `true` mientras se verifica el usuario en la base (evita logins duplicados). */
+    /** `true` mientras se verifica la cuenta (evita logins duplicados). */
     val isLoading: Boolean = false,
 )
 
@@ -45,9 +48,9 @@ class LoginViewModel(
     var uiState by mutableStateOf(LoginUiState())
         private set
 
-    fun onUsuarioChange(nuevoUsuario: String) {
+    fun onEmailChange(nuevoEmail: String) {
         // Al escribir se limpia el error anterior para no dejarlo "pegado".
-        uiState = uiState.copy(usuario = nuevoUsuario, error = null)
+        uiState = uiState.copy(email = nuevoEmail, error = null)
     }
 
     fun onContrasenaChange(nuevaContrasena: String) {
@@ -59,21 +62,19 @@ class LoginViewModel(
     }
 
     /**
-     * Valida el formulario y autentica. Si algo no cumple, escribe el mensaje en
+     * Valida el formulario e inicia sesión. Si algo no cumple, escribe el mensaje en
      * [LoginUiState.error]. Si las credenciales son correctas, guarda el perfil en
      * [SesionActual] e invoca [onLoginExitoso] (la UI navega a Home).
      */
     fun onLoginClick(onLoginExitoso: () -> Unit) {
         if (uiState.isLoading) return
-        val usuario = uiState.usuario.trim()
+        val email = uiState.email.trim()
         val contrasena = uiState.contrasena
 
         val error = when {
-            usuario.isEmpty() || contrasena.isEmpty() ->
-                "Completá el usuario y la contraseña."
-            // Supabase Auth entra con email. Buscar el email a partir del nombre de usuario
-            // no se puede: sin sesión, la base no deja leer la tabla perfil (RLS).
-            "@" !in usuario -> ERROR_LOGIN_EMAIL
+            email.isEmpty() -> ERROR_LOGIN_EMAIL_VACIO
+            !esCorreoValido(email) -> ERROR_LOGIN_EMAIL_FORMATO
+            contrasena.isEmpty() -> ERROR_LOGIN_CONTRASENA_VACIA
             else -> null
         }
 
@@ -84,7 +85,7 @@ class LoginViewModel(
 
         uiState = uiState.copy(isLoading = true)
         viewModelScope.launch {
-            usuarioRepository.iniciarSesion(usuario.lowercase(), contrasena)
+            usuarioRepository.iniciarSesion(email.lowercase(), contrasena)
                 .onSuccess { perfil ->
                     uiState = uiState.copy(isLoading = false)
                     SesionActual.usuarioId = perfil.idPerfil

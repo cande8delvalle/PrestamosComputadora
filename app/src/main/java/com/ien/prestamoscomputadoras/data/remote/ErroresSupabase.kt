@@ -34,7 +34,7 @@ sealed class ErrorDatos(mensaje: String, causa: Throwable? = null) : Exception(m
 
     /** Email o contraseña incorrectos. */
     class CredencialesInvalidas(causa: Throwable? = null) :
-        ErrorDatos("Usuario o contraseña incorrectos.", causa)
+        ErrorDatos("Correo o contraseña incorrectos.", causa)
 
     /** Al registrarse: ya hay una cuenta con ese email. */
     class EmailEnUso(causa: Throwable? = null) : ErrorDatos("Ya existe una cuenta con este correo", causa)

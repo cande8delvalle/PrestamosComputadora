@@ -40,10 +40,10 @@ class LoginViewModelTest {
         SesionActual.usuarioId = null
     }
 
-    private fun login(usuario: String, contrasena: String): Pair<LoginViewModel, Boolean> {
+    private fun login(email: String, contrasena: String): Pair<LoginViewModel, Boolean> {
         var exitoso = false
         val vm = LoginViewModel(repo).apply {
-            onUsuarioChange(usuario)
+            onEmailChange(email)
             onContrasenaChange(contrasena)
             onLoginClick { exitoso = true }
         }
@@ -52,27 +52,48 @@ class LoginViewModelTest {
 
     @Test
     fun emailCorrecto_sinImportarMayusculas_guardaElPerfilEnLaSesion() {
-        listOf("admin@ien.edu.ar", " ADMIN@ien.edu.ar ").forEach { usuario ->
+        listOf("admin@ien.edu.ar", " ADMIN@ien.edu.ar ").forEach { email ->
             SesionActual.usuarioId = null
-            val (vm, exitoso) = login(usuario, "secreta1")
-            assertTrue(usuario, exitoso)
-            assertEquals(usuario, 1L, SesionActual.usuarioId)
+            val (vm, exitoso) = login(email, "secreta1")
+            assertTrue(email, exitoso)
+            assertEquals(email, 1L, SesionActual.usuarioId)
             assertNull(vm.uiState.error)
             assertFalse(vm.uiState.isLoading)
         }
     }
 
     @Test
-    fun nombreDeUsuario_pideElCorreo() {
-        val (vm, exitoso) = login("Jperez", "secreta1")
+    fun emailVacio_pideElCorreo() {
+        val (vm, exitoso) = login("  ", "secreta1")
         assertFalse(exitoso)
-        assertEquals(ERROR_LOGIN_EMAIL, vm.uiState.error)
+        assertEquals(ERROR_LOGIN_EMAIL_VACIO, vm.uiState.error)
+    }
+
+    @Test
+    fun emailConFormatoInvalido_oNombreDeUsuario_muestraErrorDeFormato() {
+        listOf("Jperez", "juan@", "juan@ien", "@ien.edu.ar").forEach { email ->
+            val (vm, exitoso) = login(email, "secreta1")
+            assertFalse(email, exitoso)
+            assertEquals(email, ERROR_LOGIN_EMAIL_FORMATO, vm.uiState.error)
+        }
+    }
+
+    @Test
+    fun contrasenaVacia_laPide() {
+        val (vm, exitoso) = login("admin@ien.edu.ar", "")
+        assertFalse(exitoso)
+        assertEquals(ERROR_LOGIN_CONTRASENA_VACIA, vm.uiState.error)
+    }
+
+    @Test
+    fun credencialesIncorrectas_mensajeEnCastellano() {
+        assertEquals("Correo o contraseña incorrectos.", ERROR_LOGIN_CREDENCIALES)
     }
 
     @Test
     fun contrasenaIncorrectaOEmailInexistente_muestraError() {
-        listOf("admin@ien.edu.ar" to "otra", "nadie@ien.edu.ar" to "secreta1").forEach { (usuario, contrasena) ->
-            val (vm, exitoso) = login(usuario, contrasena)
+        listOf("admin@ien.edu.ar" to "otra", "nadie@ien.edu.ar" to "secreta1").forEach { (email, contrasena) ->
+            val (vm, exitoso) = login(email, contrasena)
             assertFalse(exitoso)
             assertEquals(ERROR_LOGIN_CREDENCIALES, vm.uiState.error)
             assertNull(SesionActual.usuarioId)

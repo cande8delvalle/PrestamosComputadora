@@ -182,7 +182,7 @@ private fun RegisterContent(
                 )
 
                 RegisterField(
-                    label = "Nombre de usuario",
+                    label = "Nombre de usuario (para mostrar)",
                     value = uiState.nombreUsuario,
                     onValueChange = onNombreUsuarioChange,
                     placeholder = "ej: Jperez",
