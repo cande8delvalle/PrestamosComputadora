@@ -20,6 +20,11 @@ data class PrestamoEncontrado(
     val dniAlumno: String,
     val codigoComputadora: String,
     val fechaPrestamo: Instant,
+    /**
+     * Observaciones que se cargaron al ENTREGAR la computadora (observaciones_iniciales).
+     * `null` si no hay o están vacías. Se muestran al recibirla para compararlas.
+     */
+    val observacionesIniciales: String? = null,
 )
 
 /** El préstamo ya no estaba ACTIVO al confirmar (p. ej. lo devolvió otro usuario recién). */
@@ -80,6 +85,7 @@ class SupabaseDevolucionRepository(
                         dniAlumno = it.alumnoDni,
                         codigoComputadora = it.computadoraCodigo,
                         fechaPrestamo = it.fechaPrestamo,
+                        observacionesIniciales = it.observacionesIniciales?.trim()?.ifEmpty { null },
                     )
                 }
         }

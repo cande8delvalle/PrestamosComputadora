@@ -66,6 +66,34 @@ class RegistrarDevolucionViewModelTest {
     }
 
     @Test
+    fun qrDePrestamoSinObservaciones_noTraeObservacion() {
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-12")
+        assertNull(vm.uiState.prestamoEncontrado!!.observacionesIniciales)
+    }
+
+    @Test
+    fun qrDePrestamoConObservacionAlEntregar_laMuestraCompleta() = runTest {
+        repo.insertar(
+            NuevoPrestamo(
+                idAlumno = 1, idComputadora = 7, idUsuarioPrestamo = 1,
+                observacionesIniciales = "Rayón en la tapa y tecla F5 floja.",
+            ),
+        )
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-07")
+        assertEquals("Rayón en la tapa y tecla F5 floja.", vm.uiState.prestamoEncontrado!!.observacionesIniciales)
+    }
+
+    @Test
+    fun observacionSoloConEspacios_noSeMuestra() = runTest {
+        repo.insertar(NuevoPrestamo(idAlumno = 1, idComputadora = 7, idUsuarioPrestamo = 1, observacionesIniciales = "   "))
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-07")
+        assertNull(vm.uiState.prestamoEncontrado!!.observacionesIniciales)
+    }
+
+    @Test
     fun qrSinPrestamoActivo_muestraErrorYSigueEscaneando() {
         listOf("PC-07", "PC-99").forEach { codigo ->
             val vm = nuevoVm()

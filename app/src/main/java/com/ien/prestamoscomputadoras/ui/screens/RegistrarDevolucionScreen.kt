@@ -23,6 +23,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +42,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Laptop
@@ -95,6 +97,7 @@ import com.ien.prestamoscomputadoras.data.repository.PrestamoEncontrado
 import com.ien.prestamoscomputadoras.ui.components.BackHeader
 import com.ien.prestamoscomputadoras.ui.components.ExitoOverlay
 import com.ien.prestamoscomputadoras.ui.components.FormErrorRed
+import com.ien.prestamoscomputadoras.ui.components.AmbarObservacion
 import com.ien.prestamoscomputadoras.ui.components.FormLabel
 import com.ien.prestamoscomputadoras.ui.theme.IenCream
 import com.ien.prestamoscomputadoras.ui.theme.IenGreyText
@@ -531,6 +534,12 @@ private fun ConfirmacionDevolucion(
 
             DatosPrestamo(prestamo)
 
+            // Si el equipo ya salió con un detalle, se recuerda antes de revisarlo.
+            prestamo.observacionesIniciales?.let { observacion ->
+                Spacer(Modifier.height(14.dp))
+                ObservacionDeLaEntrega(observacion)
+            }
+
             Spacer(Modifier.height(14.dp))
 
             Row(
@@ -693,6 +702,43 @@ private fun ItemChecklist(
     }
 }
 
+/**
+ * Tarjeta destacada (ámbar, ícono de información) con las observaciones que se cargaron al
+ * entregar la computadora: así quien la recibe compara el estado actual con el de la salida.
+ */
+@Composable
+private fun ObservacionDeLaEntrega(texto: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(AmbarObservacion.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+            .border(1.5.dp, AmbarObservacion, RoundedCornerShape(12.dp))
+            .padding(14.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Info,
+            contentDescription = null,
+            tint = AmbarObservacion,
+            modifier = Modifier.size(22.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text(
+                text = "Se entregó con esta observación:",
+                color = AmbarObservacion,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = texto,
+                color = Color(0xFF4A3000),
+                fontSize = 14.sp,
+            )
+        }
+    }
+}
+
 @Composable
 private fun BotonAmarillo(texto: String, onClick: () -> Unit, cargando: Boolean = false) {
     Button(
@@ -730,6 +776,7 @@ private fun ConfirmacionDevolucionPreview() {
         dniAlumno = "46111222",
         codigoComputadora = "PC-12",
         fechaPrestamo = Instant.fromEpochMilliseconds(1_782_320_400_000),
+        observacionesIniciales = "Rayón en la tapa y tecla F5 floja.",
     )
     PrestamosComputadorasTheme {
         ConfirmacionDevolucion(

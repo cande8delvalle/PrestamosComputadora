@@ -245,6 +245,7 @@ class FakePrestamos(
                 dniAlumno = alumno.dni,
                 codigoComputadora = codigoComputadora,
                 fechaPrestamo = prestamo.fechaPrestamo,
+                observacionesIniciales = prestamo.observacionesIniciales?.trim()?.ifEmpty { null },
             ),
         )
     }
