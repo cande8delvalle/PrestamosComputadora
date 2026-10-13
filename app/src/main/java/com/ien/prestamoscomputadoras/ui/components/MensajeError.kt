@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -16,10 +17,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.ien.prestamoscomputadoras.data.remote.MENSAJE_SIN_CONEXION
 
 /**
- * Aviso de error de la capa de datos (sin internet, sin permiso, etc.). Si se pasa
- * [onReintentar], muestra el botón "Reintentar".
+ * Aviso de error de la capa de datos. Si se pasa [onReintentar], muestra el botón
+ * "Reintentar". La nube tachada es SOLO para "sin conexión"; el resto usa el ícono de error.
  */
 @Composable
 fun MensajeError(
@@ -36,7 +38,7 @@ fun MensajeError(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Icon(
-            Icons.Filled.CloudOff,
+            if (texto == MENSAJE_SIN_CONEXION) Icons.Filled.CloudOff else Icons.Filled.ErrorOutline,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onErrorContainer,
         )

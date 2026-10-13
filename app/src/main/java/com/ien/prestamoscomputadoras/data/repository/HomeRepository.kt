@@ -3,7 +3,9 @@ package com.ien.prestamoscomputadoras.data.repository
 import com.ien.prestamoscomputadoras.data.model.PrestamoHistorial
 import com.ien.prestamoscomputadoras.data.model.ResumenHoy
 import com.ien.prestamoscomputadoras.data.remote.SupabaseProvider
-import com.ien.prestamoscomputadoras.data.remote.llamarSupabase
+import com.ien.prestamoscomputadoras.data.remote.GuardiaSesion
+import com.ien.prestamoscomputadoras.data.remote.SupabaseGuardiaSesion
+import com.ien.prestamoscomputadoras.data.remote.llamarConSesion
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
@@ -44,14 +46,16 @@ private val contadorCanales = AtomicInteger()
 
 class SupabaseHomeRepository(
     private val supabase: SupabaseClient = SupabaseProvider.client,
+    /** Espera la sesión antes de consultar y refresca el token si venció (ver SesionSupabase.kt). */
+    private val guardia: GuardiaSesion = SupabaseGuardiaSesion(supabase),
 ) : HomeRepository {
 
-    override suspend fun resumenHoy(): Result<ResumenHoy> = llamarSupabase {
+    override suspend fun resumenHoy(): Result<ResumenHoy> = llamarConSesion(guardia) {
         // La función devuelve una tabla de una sola fila.
         supabase.postgrest.rpc("resumen_hoy").decodeSingle<ResumenHoy>()
     }
 
-    override suspend fun prestamosRecientes(limite: Int): Result<List<PrestamoHistorial>> = llamarSupabase {
+    override suspend fun prestamosRecientes(limite: Int): Result<List<PrestamoHistorial>> = llamarConSesion(guardia) {
         supabase.from("historial_prestamos")
             .select {
                 order("ultima_actividad", Order.DESCENDING)
@@ -68,6 +72,8 @@ class SupabaseHomeRepository(
             table = "prestamo"
         }
         try {
+            // Sin sesión lista, el canal se conectaría como anon y no recibiría nada (RLS).
+            guardia.esperarSesion()
             canal.subscribe()
             emitAll(cambios.map { })
         } finally {

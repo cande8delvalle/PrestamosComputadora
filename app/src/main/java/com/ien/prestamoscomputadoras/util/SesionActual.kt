@@ -2,6 +2,9 @@ package com.ien.prestamoscomputadoras.util
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Perfil con la sesión iniciada (id_perfil). Se setea en el login (o al restaurar la sesión en
@@ -23,4 +26,23 @@ object SesionActual {
      * pantalla (p. ej. avisarle a Supabase que se cerró la sesión).
      */
     val scope = CoroutineScope(SupervisorJob())
+
+    private val _sesionVencida = MutableStateFlow(false)
+
+    /**
+     * `true` cuando una consulta confirmó que la sesión venció (ni refrescando el token se
+     * pudo). La navegación lo escucha y lleva al login con el aviso.
+     */
+    val sesionVencida: StateFlow<Boolean> = _sesionVencida.asStateFlow()
+
+    fun avisarSesionVencida() {
+        _sesionVencida.value = true
+    }
+
+    /** Devuelve si había un aviso pendiente y lo borra (lo usa el login para mostrarlo una vez). */
+    fun consumirAvisoSesionVencida(): Boolean {
+        val habia = _sesionVencida.value
+        _sesionVencida.value = false
+        return habia
+    }
 }

@@ -75,6 +75,7 @@ fun RolesPermisosScreen(
         uiState = viewModel.uiState,
         onTabSeleccionado = viewModel::onTabSeleccionado,
         onPermisoClick = viewModel::onPermisoClick,
+        onReintentar = viewModel::cargar,
         onVolverClick = onVolverClick,
         modifier = modifier,
     )
@@ -85,6 +86,7 @@ private fun RolesPermisosContent(
     uiState: RolesPermisosUiState,
     onTabSeleccionado: (RolTab) -> Unit,
     onPermisoClick: (Permiso) -> Unit,
+    onReintentar: () -> Unit = {},
     onVolverClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -135,6 +137,7 @@ private fun RolesPermisosContent(
                 uiState.error?.let { error ->
                     MensajeError(
                         texto = error,
+                        onReintentar = onReintentar,
                         modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
                     )
                 }

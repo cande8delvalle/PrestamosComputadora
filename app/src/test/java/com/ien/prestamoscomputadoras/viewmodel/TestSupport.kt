@@ -345,30 +345,45 @@ class FakeHomeRepository(var hoy: Pair<Instant, Instant> = fechaAr(9, 30, 0) to 
     suspend fun avisarCambio() = cambios.emit(Unit)
 }
 
-/** Rol de cada perfil y permisos por rol, con la misma lógica que el repositorio real. */
+/**
+ * Rol de cada perfil y permisos por rol, con la misma lógica que el repositorio real.
+ * - [fallaLectura]: si no es `null`, las LECTURAS fallan con ese error (sin red, sesión...).
+ * - [escrituras]: cuántas veces se escribió en rol_permiso (Home nunca debería hacerlo).
+ */
 class FakePermisosRepository(
     rolesPorUsuario: Map<Long, Long> = emptyMap(),
     permisosIniciales: Set<RolPermiso> = emptySet(),
 ) : PermisosRepository {
     val roles = MutableStateFlow(rolesPorUsuario)
     val permisos = MutableStateFlow(permisosIniciales)
+    /** Falla de las escrituras (cambiarPermisoPersonal). */
     var falla: ErrorDatos? = null
+    var fallaLectura: ErrorDatos? = null
+    var escrituras = 0
+    var lecturas = 0
 
-    override fun accesoDe(idUsuario: Long?): Flow<AccesoUsuario> {
-        if (idUsuario == null) return flowOf(AccesoUsuario.SIN_ACCESO)
-        return kotlinx.coroutines.flow.combine(roles, permisos) { r, p ->
-            when (val idRol = r[idUsuario]) {
+    override suspend fun accesoDe(idUsuario: Long?): Result<AccesoUsuario> {
+        if (idUsuario == null) return Result.success(AccesoUsuario.SIN_ACCESO)
+        lecturas++
+        fallaLectura?.let { return Result.failure(it) }
+        return Result.success(
+            when (val idRol = roles.value[idUsuario]) {
                 null -> AccesoUsuario.SIN_ACCESO
                 Rol.ID_ADMIN -> AccesoUsuario(esAdmin = true, permisos = Permiso.entries.toSet())
-                else -> AccesoUsuario(esAdmin = false, permisos = permisosDe(p, idRol))
-            }
-        }
+                else -> AccesoUsuario(esAdmin = false, permisos = permisosDe(permisos.value, idRol))
+            },
+        )
     }
 
-    override fun permisosPersonal(): Flow<Set<Permiso>> = permisos.map { permisosDe(it, Rol.ID_PERSONAL) }
+    override suspend fun permisosPersonal(): Result<Set<Permiso>> {
+        lecturas++
+        fallaLectura?.let { return Result.failure(it) }
+        return Result.success(permisosDe(permisos.value, Rol.ID_PERSONAL))
+    }
 
     override suspend fun cambiarPermisoPersonal(permiso: Permiso, habilitado: Boolean): Result<Unit> {
         require(!permiso.soloAdmin) { "${permiso.name} es exclusivo del Admin" }
+        escrituras++
         falla?.let { return Result.failure(it) }
         val fila = RolPermiso(Rol.ID_PERSONAL, permiso.name)
         permisos.value = if (habilitado) permisos.value + fila else permisos.value - fila

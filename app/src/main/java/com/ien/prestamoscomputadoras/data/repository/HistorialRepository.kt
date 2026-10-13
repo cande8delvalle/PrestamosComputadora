@@ -2,7 +2,9 @@ package com.ien.prestamoscomputadoras.data.repository
 
 import com.ien.prestamoscomputadoras.data.model.PrestamoHistorial
 import com.ien.prestamoscomputadoras.data.remote.SupabaseProvider
-import com.ien.prestamoscomputadoras.data.remote.llamarSupabase
+import com.ien.prestamoscomputadoras.data.remote.GuardiaSesion
+import com.ien.prestamoscomputadoras.data.remote.SupabaseGuardiaSesion
+import com.ien.prestamoscomputadoras.data.remote.llamarConSesion
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
@@ -20,10 +22,12 @@ interface HistorialRepository {
 
 class SupabaseHistorialRepository(
     private val supabase: SupabaseClient = SupabaseProvider.client,
+    /** Espera la sesión antes de consultar y refresca el token si venció (ver SesionSupabase.kt). */
+    private val guardia: GuardiaSesion = SupabaseGuardiaSesion(supabase),
 ) : HistorialRepository {
 
     override suspend fun listarEntre(desde: Instant, hasta: Instant): Result<List<PrestamoHistorial>> =
-        llamarSupabase {
+        llamarConSesion(guardia) {
             supabase.from("historial_prestamos")
                 .select {
                     filter {

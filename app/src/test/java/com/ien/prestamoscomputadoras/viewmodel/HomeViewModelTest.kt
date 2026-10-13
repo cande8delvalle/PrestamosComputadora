@@ -4,6 +4,7 @@ import com.ien.prestamoscomputadoras.data.Permiso
 import com.ien.prestamoscomputadoras.data.model.Rol
 import com.ien.prestamoscomputadoras.data.model.RolPermiso
 import com.ien.prestamoscomputadoras.data.remote.ErrorDatos
+import com.ien.prestamoscomputadoras.data.remote.MENSAJE_ERROR_CARGA
 import com.ien.prestamoscomputadoras.data.remote.MENSAJE_SIN_CONEXION
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -230,8 +231,80 @@ class HomeViewModelTest {
         assertEquals(Permiso.inicialesPersonal, vm.uiState.value.acceso.permisos)
         assertFalse(vm.uiState.value.acceso.puede(Permiso.REGISTRAR_ALUMNO))
 
+        // El Admin le habilita Registrar Alumnos: Home lo ve al volver a leer (al volver a la
+        // pantalla, con un cambio en Realtime o con Reintentar).
         permisos.permisos.value = permisos.permisos.value + RolPermiso(Rol.ID_PERSONAL, Permiso.REGISTRAR_ALUMNO.name)
+        vm.onPantallaOculta()
+        vm.onPantallaVisible()
         assertTrue(vm.uiState.value.acceso.puede(Permiso.REGISTRAR_ALUMNO))
+    }
+
+    // --- Bug: se perdían los permisos al cambiar de app y volver ---------------------------
+
+    private fun personalConPermisos() = FakePermisosRepository(
+        rolesPorUsuario = mapOf(2L to Rol.ID_PERSONAL),
+        permisosIniciales = Permiso.inicialesPersonal.map { RolPermiso(Rol.ID_PERSONAL, it.name) }.toSet(),
+    )
+
+    @Test
+    fun errorDeLectura_noVaciaLosPermisos() {
+        val permisos = personalConPermisos()
+        val vm = nuevoVm(permisos = permisos, idUsuario = 2L)
+        assertEquals(Permiso.inicialesPersonal, vm.uiState.value.acceso.permisos)
+
+        // Sale y vuelve a la app; la lectura falla (sin red / sesión renovándose).
+        listOf(ErrorDatos.SinConexion(), ErrorDatos.SesionVencida(), ErrorDatos.Otro()).forEach { error ->
+            permisos.fallaLectura = error
+            vm.onPantallaOculta()
+            vm.onPantallaVisible()
+
+            assertEquals(Permiso.inicialesPersonal, vm.uiState.value.acceso.permisos)
+            assertTrue(vm.uiState.value.error != null)
+        }
+    }
+
+    @Test
+    fun reintentar_vuelveAPedirLosPermisosYLimpiaElAviso() {
+        val permisos = personalConPermisos().apply { fallaLectura = ErrorDatos.SinConexion() }
+        val vm = nuevoVm(permisos = permisos, idUsuario = 2L)
+        assertEquals(MENSAJE_SIN_CONEXION, vm.uiState.value.error)
+        val lecturasAntes = permisos.lecturas
+
+        permisos.fallaLectura = null
+        vm.reintentar()
+
+        assertTrue(permisos.lecturas > lecturasAntes)
+        assertNull(vm.uiState.value.error)
+        assertEquals(Permiso.inicialesPersonal, vm.uiState.value.acceso.permisos)
+    }
+
+    @Test
+    fun cargaAutomatica_nuncaDiceSoloElAdminPuede() {
+        val permisos = personalConPermisos().apply { fallaLectura = ErrorDatos.SinPermiso() }
+        val vm = nuevoVm(permisos = permisos, idUsuario = 2L)
+        assertEquals(MENSAJE_ERROR_CARGA, vm.uiState.value.error)
+    }
+
+    @Test
+    fun home_nuncaEscribeEnRolPermiso() = runTest {
+        val permisos = personalConPermisos()
+        val home = FakeHomeRepository()
+        val vm = nuevoVm(home = home, permisos = permisos, idUsuario = 2L)
+
+        // Todo lo que puede pasar en Home: volver a la app, Realtime, Reintentar, errores.
+        repeat(3) {
+            vm.onPantallaOculta()
+            vm.onPantallaVisible()
+        }
+        home.avisarCambio()
+        permisos.fallaLectura = ErrorDatos.SesionVencida()
+        vm.reintentar()
+        permisos.fallaLectura = null
+        vm.reintentar()
+        vm.onPantallaOculta()
+
+        assertEquals(0, permisos.escrituras)
+        assertTrue(permisos.lecturas > 0)
     }
 
     @Test

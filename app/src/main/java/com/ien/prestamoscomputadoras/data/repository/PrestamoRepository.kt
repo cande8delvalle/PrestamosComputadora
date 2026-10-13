@@ -5,7 +5,9 @@ import com.ien.prestamoscomputadoras.data.model.Computadora
 import com.ien.prestamoscomputadoras.data.model.NuevoPrestamo
 import com.ien.prestamoscomputadoras.data.model.Prestamo
 import com.ien.prestamoscomputadoras.data.remote.SupabaseProvider
-import com.ien.prestamoscomputadoras.data.remote.llamarSupabase
+import com.ien.prestamoscomputadoras.data.remote.GuardiaSesion
+import com.ien.prestamoscomputadoras.data.remote.SupabaseGuardiaSesion
+import com.ien.prestamoscomputadoras.data.remote.llamarConSesion
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
@@ -38,16 +40,18 @@ private data class IdComputadora(@SerialName("id_computadora") val idComputadora
 
 class SupabasePrestamoRepository(
     private val supabase: SupabaseClient = SupabaseProvider.client,
+    /** Espera la sesión antes de consultar y refresca el token si venció (ver SesionSupabase.kt). */
+    private val guardia: GuardiaSesion = SupabaseGuardiaSesion(supabase),
 ) : PrestamoRepository {
 
-    override suspend fun insertar(prestamo: NuevoPrestamo): Result<Long> = llamarSupabase {
+    override suspend fun insertar(prestamo: NuevoPrestamo): Result<Long> = llamarConSesion(guardia) {
         supabase.from("prestamo")
             .insert(prestamo) { select() }
             .decodeSingle<Prestamo>()
             .idPrestamo
     }
 
-    override suspend fun listarAlumnos(): Result<List<Alumno>> = llamarSupabase {
+    override suspend fun listarAlumnos(): Result<List<Alumno>> = llamarConSesion(guardia) {
         supabase.from("alumno")
             .select {
                 order("apellido", Order.ASCENDING)
@@ -56,7 +60,7 @@ class SupabasePrestamoRepository(
             .decodeList<Alumno>()
     }
 
-    override suspend fun listarComputadorasDisponibles(): Result<List<Computadora>> = llamarSupabase {
+    override suspend fun listarComputadorasDisponibles(): Result<List<Computadora>> = llamarConSesion(guardia) {
         val prestadas = supabase.from("prestamo")
             .select(Columns.list("id_computadora")) {
                 filter { eq("estado", Prestamo.ESTADO_ACTIVO) }

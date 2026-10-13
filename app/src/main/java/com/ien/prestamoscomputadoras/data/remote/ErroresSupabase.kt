@@ -2,6 +2,9 @@ package com.ien.prestamoscomputadoras.data.remote
 
 import io.github.jan.supabase.auth.exception.AuthErrorCode
 import io.github.jan.supabase.auth.exception.AuthRestException
+import io.github.jan.supabase.auth.exception.AuthSessionMissingException
+import io.github.jan.supabase.auth.exception.SessionRequiredException
+import io.github.jan.supabase.auth.exception.TokenExpiredException
 import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.postgrest.exception.PostgrestRestException
 import io.ktor.client.plugins.HttpRequestTimeoutException
@@ -12,7 +15,9 @@ import kotlinx.coroutines.withContext
 
 const val MENSAJE_SIN_CONEXION = "No hay conexión a internet. Revisá el Wi-Fi o los datos e intentá de nuevo."
 const val MENSAJE_SIN_PERMISO = "No tenés permiso para hacer esto. Solo el Admin puede."
-const val MENSAJE_SESION_VENCIDA = "Tu sesión venció. Volvé a iniciar sesión."
+const val MENSAJE_SESION_VENCIDA = "Tu sesión venció. Volvé a ingresar."
+/** Para cargas automáticas (Home, listas): nunca dice "Solo el Admin puede". */
+const val MENSAJE_ERROR_CARGA = "No se pudieron cargar los datos. Intentá de nuevo."
 const val MENSAJE_ERROR_INESPERADO = "Ocurrió un error inesperado. Intentá de nuevo."
 
 /**
@@ -71,8 +76,12 @@ fun traducirError(e: Throwable): ErrorDatos = when (e) {
     is ErrorDatos -> e
     // HttpRequestException (de supabase-kt) y UnknownHostException también son IOException.
     is IOException, is HttpRequestTimeoutException -> ErrorDatos.SinConexion(e)
+    is TokenExpiredException, is AuthSessionMissingException, is SessionRequiredException ->
+        ErrorDatos.SesionVencida(e)
     is PostgrestRestException -> when (e.code) {
-        "42501" -> ErrorDatos.SinPermiso(e) // insufficient_privilege: lo bloqueó una política RLS
+        // insufficient_privilege. Con 401 la consulta salió sin un usuario válido (rol anon):
+        // es la sesión. Con 403 la sesión es válida pero el rol no puede (RLS): es permiso.
+        "42501" -> if (e.statusCode == 401) ErrorDatos.SesionVencida(e) else ErrorDatos.SinPermiso(e)
         "23505" -> ErrorDatos.Duplicado(NOMBRE_RESTRICCION.find(e.error)?.groupValues?.get(1), e)
         "PGRST301", "PGRST303" -> ErrorDatos.SesionVencida(e) // JWT inválido o vencido
         else -> ErrorDatos.Otro(e)

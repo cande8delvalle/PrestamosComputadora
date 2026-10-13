@@ -12,7 +12,6 @@ import com.ien.prestamoscomputadoras.data.Permiso
 import com.ien.prestamoscomputadoras.data.repository.PermisosRepository
 import com.ien.prestamoscomputadoras.data.repository.SupabasePermisosRepository
 import com.ien.prestamoscomputadoras.util.SesionActual
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 /** Tabs de la pantalla. */
@@ -66,13 +65,24 @@ class RolesPermisosViewModel(
         private set
 
     init {
+        cargar()
+    }
+
+    /**
+     * Lee el rol del usuario y los permisos de Personal. También lo usa "Reintentar".
+     * Si falla, se conserva lo que ya se había cargado y se muestra el aviso.
+     */
+    fun cargar() {
+        uiState = uiState.copy(error = null)
         viewModelScope.launch {
-            combine(
-                permisosRepository.accesoDe(idUsuario),
-                permisosRepository.permisosPersonal(),
-            ) { acceso, permisosPersonal ->
-                uiState.copy(cargando = false, esAdmin = acceso.esAdmin, permisosPersonal = permisosPersonal)
-            }.collect { uiState = it }
+            val acceso = permisosRepository.accesoDe(idUsuario)
+            val permisos = permisosRepository.permisosPersonal()
+            uiState = uiState.copy(
+                cargando = false,
+                esAdmin = acceso.getOrNull()?.esAdmin ?: uiState.esAdmin,
+                permisosPersonal = permisos.getOrNull() ?: uiState.permisosPersonal,
+                error = (acceso.exceptionOrNull() ?: permisos.exceptionOrNull())?.let(::mensajeDeCargaAutomatica),
+            )
         }
     }
 
@@ -83,7 +93,7 @@ class RolesPermisosViewModel(
     /**
      * Toque en el círculo de un permiso: lo tilda/destilda para Personal Administrativo y lo
      * guarda. En el tab Admin, con permisos exclusivos del Admin o si el usuario no es Admin,
-     * no hace nada. La pantalla se actualiza sola cuando la base vuelve a emitir.
+     * no hace nada. Si la base lo guardó, se actualiza la tarjeta; si no, se muestra el error.
      */
     fun onPermisoClick(permiso: Permiso) {
         val s = uiState
@@ -92,6 +102,11 @@ class RolesPermisosViewModel(
         uiState = s.copy(error = null)
         viewModelScope.launch {
             permisosRepository.cambiarPermisoPersonal(permiso, habilitar)
+                .onSuccess {
+                    val actuales = uiState.permisosPersonal
+                    uiState = uiState.copy(permisosPersonal = if (habilitar) actuales + permiso else actuales - permiso)
+                }
+                // Acá SÍ es una acción del usuario: si la base dice que no puede, se lo dice.
                 .onFailure { e -> uiState = uiState.copy(error = e.message) }
         }
     }

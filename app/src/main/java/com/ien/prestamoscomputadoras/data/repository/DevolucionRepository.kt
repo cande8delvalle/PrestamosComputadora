@@ -5,7 +5,9 @@ import com.ien.prestamoscomputadoras.data.model.Prestamo
 import com.ien.prestamoscomputadoras.data.model.PrestamoHistorial
 import com.ien.prestamoscomputadoras.data.remote.ErrorDeNegocio
 import com.ien.prestamoscomputadoras.data.remote.SupabaseProvider
-import com.ien.prestamoscomputadoras.data.remote.llamarSupabase
+import com.ien.prestamoscomputadoras.data.remote.GuardiaSesion
+import com.ien.prestamoscomputadoras.data.remote.SupabaseGuardiaSesion
+import com.ien.prestamoscomputadoras.data.remote.llamarConSesion
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import kotlin.time.Instant
@@ -64,10 +66,12 @@ private data class CambioEstado(@SerialName("estado") val estado: String)
 
 class SupabaseDevolucionRepository(
     private val supabase: SupabaseClient = SupabaseProvider.client,
+    /** Espera la sesión antes de consultar y refresca el token si venció (ver SesionSupabase.kt). */
+    private val guardia: GuardiaSesion = SupabaseGuardiaSesion(supabase),
 ) : DevolucionRepository {
 
     override suspend fun buscarPrestamoActivo(codigoComputadora: String): Result<PrestamoEncontrado?> =
-        llamarSupabase {
+        llamarConSesion(guardia) {
             // La vista ya trae el alumno y el código resueltos: una sola consulta.
             supabase.from("historial_prestamos")
                 .select {
@@ -96,7 +100,7 @@ class SupabaseDevolucionRepository(
         pantallaOk: Boolean,
         cargador: Boolean,
         observaciones: String?,
-    ): Result<Unit> = llamarSupabase {
+    ): Result<Unit> = llamarConSesion(guardia) {
         // 1) ACTIVO -> DEVUELTO, solo si seguía ACTIVO. select() devuelve las filas cambiadas:
         //    si no cambió ninguna, ya estaba devuelto.
         val actualizados = supabase.from("prestamo")

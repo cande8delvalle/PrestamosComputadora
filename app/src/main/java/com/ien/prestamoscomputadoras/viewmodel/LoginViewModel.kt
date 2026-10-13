@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.ien.prestamoscomputadoras.data.remote.ErrorDatos
+import com.ien.prestamoscomputadoras.data.remote.MENSAJE_SESION_VENCIDA
 import com.ien.prestamoscomputadoras.data.repository.SupabaseUsuarioRepository
 import com.ien.prestamoscomputadoras.data.repository.UsuarioRepository
 import com.ien.prestamoscomputadoras.util.SesionActual
@@ -45,7 +46,13 @@ class LoginViewModel(
     private val usuarioRepository: UsuarioRepository,
 ) : ViewModel() {
 
-    var uiState by mutableStateOf(LoginUiState())
+    /**
+     * Si se llegó acá porque la sesión venció (ver SesionActual.sesionVencida), se avisa con
+     * "Tu sesión venció. Volvé a ingresar." en lugar de mostrar el login vacío sin explicación.
+     */
+    var uiState by mutableStateOf(
+        LoginUiState(error = if (SesionActual.consumirAvisoSesionVencida()) MENSAJE_SESION_VENCIDA else null),
+    )
         private set
 
     fun onEmailChange(nuevoEmail: String) {

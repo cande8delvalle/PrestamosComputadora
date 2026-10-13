@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.ien.prestamoscomputadoras.data.Permiso
+import com.ien.prestamoscomputadoras.data.remote.ErrorDatos
+import com.ien.prestamoscomputadoras.data.remote.MENSAJE_ERROR_CARGA
 import com.ien.prestamoscomputadoras.data.repository.AccesoUsuario
 import com.ien.prestamoscomputadoras.data.repository.HomeRepository
 import com.ien.prestamoscomputadoras.data.repository.PermisosRepository
@@ -32,6 +34,14 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+/**
+ * Mensaje para un error de una carga automática (Home, al abrir o al volver a la app). Nunca
+ * es "Solo el Admin puede": ese aviso es solo para cuando el usuario intenta una acción que no
+ * le corresponde (p. ej. registrar un alumno sin ser Admin).
+ */
+internal fun mensajeDeCargaAutomatica(error: Throwable): String? =
+    if (error is ErrorDatos.SinPermiso) MENSAJE_ERROR_CARGA else error.message
 
 /** Cantidad máxima de ítems en "Actividad reciente". */
 private const val LIMITE_ACTIVIDAD_RECIENTE = 5
@@ -130,11 +140,6 @@ class HomeViewModel(
     fun onPantallaVisible() {
         if (escucha?.isActive == true) return
         escucha = viewModelScope.launch {
-            launch {
-                permisosRepository.accesoDe(idUsuario).collect { acceso ->
-                    _uiState.update { it.copy(acceso = acceso) }
-                }
-            }
             // flowOf(Unit): la primera lectura. Después, una por cada cambio o cambio de día.
             merge(flowOf(Unit), homeRepository.cambiosEnPrestamos(), cambioDeDia())
                 .collectLatest { cargar() }
@@ -147,19 +152,29 @@ class HomeViewModel(
         escucha = null
     }
 
-    /** Botón "Reintentar" del aviso de error. */
+    /** Botón "Reintentar" del aviso de error: vuelve a pedir TODO, permisos incluidos. */
     fun reintentar() {
         viewModelScope.launch { cargar() }
     }
 
+    /**
+     * Lee el resumen, la actividad reciente y los permisos. SOLO LEE: Home nunca escribe en
+     * rol_permiso (eso lo hace únicamente la pantalla Roles y Permisos del Admin).
+     *
+     * Si algo falla, se conserva lo último que se cargó bien (en memoria, en este ViewModel)
+     * y se muestra el aviso: un error de lectura nunca deja a nadie sin permisos.
+     */
     private suspend fun cargar() {
         val resumen = homeRepository.resumenHoy()
         val recientes = homeRepository.prestamosRecientes(LIMITE_ACTIVIDAD_RECIENTE)
-        val error = (resumen.exceptionOrNull() ?: recientes.exceptionOrNull())?.message
+        val acceso = permisosRepository.accesoDe(idUsuario)
+        val error = (resumen.exceptionOrNull() ?: recientes.exceptionOrNull() ?: acceso.exceptionOrNull())
+            ?.let(::mensajeDeCargaAutomatica)
         _uiState.update { estado ->
             estado.copy(
                 cargando = false,
                 error = error,
+                acceso = acceso.getOrNull() ?: estado.acceso,
                 cantidadPrestados = resumen.getOrNull()?.prestados?.toInt() ?: estado.cantidadPrestados,
                 cantidadDevueltosHoy = resumen.getOrNull()?.devueltosHoy?.toInt() ?: estado.cantidadDevueltosHoy,
                 actividadReciente = recientes.getOrNull()?.map { ActividadReciente(it.aTarjeta()) }
