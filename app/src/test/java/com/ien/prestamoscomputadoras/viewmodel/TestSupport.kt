@@ -14,6 +14,7 @@ import com.ien.prestamoscomputadoras.data.model.RolPermiso
 import com.ien.prestamoscomputadoras.data.remote.ErrorDatos
 import com.ien.prestamoscomputadoras.data.repository.AccesoUsuario
 import com.ien.prestamoscomputadoras.data.repository.AlumnoRepository
+import com.ien.prestamoscomputadoras.data.repository.BusquedaDevolucion
 import com.ien.prestamoscomputadoras.data.repository.ComputadoraRepository
 import com.ien.prestamoscomputadoras.data.repository.DatosRegistro
 import com.ien.prestamoscomputadoras.data.repository.DevolucionRepository
@@ -230,23 +231,30 @@ class FakePrestamos(
     }
 
     // --- DevolucionRepository
-    override suspend fun buscarPrestamoActivo(codigoComputadora: String): Result<PrestamoEncontrado?> {
+    /** Igual que la consulta real: activo primero; si no, la devolución más reciente. */
+    override suspend fun buscarParaDevolucion(codigoComputadora: String): Result<BusquedaDevolucion> {
         falla?.let { return Result.failure(it) }
         val computadora = computadoras.firstOrNull { it.codigo == codigoComputadora }
-            ?: return Result.success(null)
-        val prestamo = prestamos.firstOrNull {
-            it.idComputadora == computadora.idComputadora && it.estado == Prestamo.ESTADO_ACTIVO
-        } ?: return Result.success(null)
+            ?: return Result.success(BusquedaDevolucion.SinPrestamos(codigoComputadora))
+        val deEsaPc = prestamos.filter { it.idComputadora == computadora.idComputadora }
+        val prestamo = deEsaPc.firstOrNull { it.estado == Prestamo.ESTADO_ACTIVO }
+            ?: return Result.success(
+                if (deEsaPc.isEmpty()) {
+                    BusquedaDevolucion.SinPrestamos(codigoComputadora)
+                } else {
+                    BusquedaDevolucion.YaDevuelta(codigoComputadora, deEsaPc.mapNotNull { it.fechaDevolucion }.maxOrNull())
+                },
+            )
         val alumno = alumnos.first { it.idAlumno == prestamo.idAlumno }
         return Result.success(
-            PrestamoEncontrado(
+            BusquedaDevolucion.ConPrestamoActivo(PrestamoEncontrado(
                 idPrestamo = prestamo.idPrestamo,
                 nombreAlumno = "${alumno.nombre} ${alumno.apellido}",
                 dniAlumno = alumno.dni,
                 codigoComputadora = codigoComputadora,
                 fechaPrestamo = prestamo.fechaPrestamo,
                 observacionesIniciales = prestamo.observacionesIniciales?.trim()?.ifEmpty { null },
-            ),
+            )),
         )
     }
 

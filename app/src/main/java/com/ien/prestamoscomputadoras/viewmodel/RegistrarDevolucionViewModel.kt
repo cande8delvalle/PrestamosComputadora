@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.ien.prestamoscomputadoras.data.repository.BusquedaDevolucion
 import com.ien.prestamoscomputadoras.data.repository.DevolucionRepository
 import com.ien.prestamoscomputadoras.data.repository.PrestamoEncontrado
 import com.ien.prestamoscomputadoras.data.repository.PrestamoYaDevueltoException
@@ -18,12 +19,10 @@ import com.ien.prestamoscomputadoras.util.horaArgentina
 import kotlin.time.Instant
 import kotlinx.coroutines.launch
 
-const val ERROR_SIN_PRESTAMO_ACTIVO = "Esta computadora no tiene préstamos pendientes de devolución"
-const val ERROR_PRESTAMO_YA_DEVUELTO = "Este préstamo ya fue registrado como devuelto."
-
 /**
- * Tiempo durante el que se ignora un código que ya se rechazó: la cámara lo sigue leyendo en
- * cada cuadro mientras está enfocado, y sin esto el mensaje se repetiría sin parar.
+ * Tiempo durante el que se ignora un código ya rechazado, contado desde que se cerró el aviso:
+ * la cámara lo sigue leyendo en cada cuadro mientras está enfocado, y sin esto el diálogo
+ * volvería a abrirse apenas se toca "Entendido".
  */
 private const val ESPERA_REESCANEO_MS = 3_000L
 
@@ -45,10 +44,15 @@ data class RegistrarDevolucionUiState(
     val isLoading: Boolean = false,
     val mostrarModalExito: Boolean = false,
     /**
-     * QR sin préstamo activo, o error al buscarlo (p. ej. sin internet). La UI lo muestra en un
-     * snackbar y avisa con [onErrorEscaneoMostrado].
+     * Error al buscar el QR (p. ej. sin internet). La UI lo muestra en un snackbar y avisa con
+     * [onErrorEscaneoMostrado].
      */
     val errorEscaneo: String? = null,
+    /**
+     * Aviso en diálogo centrado: computadora sin préstamo (nunca prestada o ya devuelta) o
+     * préstamo devuelto desde otro celular. Mientras está abierto no se procesan más QR.
+     */
+    val aviso: AvisoUi? = null,
     /** Error al confirmar (se muestra arriba del botón). */
     val errorConfirmacion: String? = null,
 )
@@ -73,30 +77,56 @@ class RegistrarDevolucionViewModel(
      */
     fun onCodigoEscaneado(valor: String) {
         val s = uiState
-        if (s.etapaActual != EtapaDevolucion.ESCANEANDO || s.buscando || s.mostrarModalExito) return
+        if (s.etapaActual != EtapaDevolucion.ESCANEANDO || s.buscando || s.mostrarModalExito || s.aviso != null) return
         val codigo = valor.trim()
         if (codigo.isEmpty()) return
         if (codigo == ultimoCodigoRechazado && ahora() - momentoUltimoRechazo < ESPERA_REESCANEO_MS) return
 
         uiState = s.copy(buscando = true)
         viewModelScope.launch {
-            val resultado = devolucionRepository.buscarPrestamoActivo(codigo)
-            val prestamo = resultado.getOrNull()
-            if (prestamo == null) {
-                // Sin préstamo activo o error de red: se avisa y se sigue escaneando (con la
-                // misma espera, para no repetir el mensaje en cada cuadro de la cámara).
-                ultimoCodigoRechazado = codigo
-                momentoUltimoRechazo = ahora()
-                uiState = uiState.copy(
-                    buscando = false,
-                    errorEscaneo = resultado.exceptionOrNull()?.message ?: ERROR_SIN_PRESTAMO_ACTIVO,
-                )
-            } else {
-                uiState = RegistrarDevolucionUiState(
-                    etapaActual = EtapaDevolucion.CONFIRMANDO,
-                    prestamoEncontrado = prestamo,
-                )
-            }
+            devolucionRepository.buscarParaDevolucion(codigo)
+                .onSuccess { busqueda ->
+                    uiState = when (busqueda) {
+                        is BusquedaDevolucion.ConPrestamoActivo -> RegistrarDevolucionUiState(
+                            etapaActual = EtapaDevolucion.CONFIRMANDO,
+                            prestamoEncontrado = busqueda.prestamo,
+                        )
+                        // Sin préstamo activo: diálogo. Se ignora este código hasta cerrarlo.
+                        is BusquedaDevolucion.SinPrestamos -> rechazar(
+                            codigo,
+                            aviso = avisoNuncaPrestada(busqueda.codigoComputadora),
+                        )
+                        is BusquedaDevolucion.YaDevuelta -> rechazar(
+                            codigo,
+                            aviso = avisoYaDevuelta(busqueda.codigoComputadora, busqueda.ultimaDevolucion),
+                        )
+                    }
+                }
+                .onFailure { e ->
+                    // Error de red: snackbar y se sigue escaneando (con la misma espera).
+                    uiState = rechazar(codigo, aviso = null).copy(errorEscaneo = e.message)
+                }
+        }
+    }
+
+    /** Marca [codigo] como rechazado (para no procesarlo en cada cuadro) y deja de buscar. */
+    private fun rechazar(codigo: String, aviso: AvisoUi?): RegistrarDevolucionUiState {
+        ultimoCodigoRechazado = codigo
+        momentoUltimoRechazo = ahora()
+        return uiState.copy(buscando = false, aviso = aviso)
+    }
+
+    /**
+     * "Entendido" del diálogo: vuelve al escáner listo para leer otro QR. El código recién
+     * rechazado se sigue ignorando unos segundos desde AHORA, por si sigue frente a la cámara.
+     */
+    fun onAvisoAceptado() {
+        momentoUltimoRechazo = ahora()
+        uiState = if (uiState.etapaActual == EtapaDevolucion.CONFIRMANDO) {
+            // El préstamo ya lo devolvió otro: no hay nada que confirmar, se vuelve a escanear.
+            RegistrarDevolucionUiState()
+        } else {
+            uiState.copy(aviso = null)
         }
     }
 
@@ -147,8 +177,13 @@ class RegistrarDevolucionViewModel(
             )
                 .onSuccess { uiState = uiState.copy(isLoading = false, mostrarModalExito = true) }
                 .onFailure { e ->
-                    val mensaje = if (e is PrestamoYaDevueltoException) ERROR_PRESTAMO_YA_DEVUELTO else e.message
-                    uiState = uiState.copy(isLoading = false, errorConfirmacion = mensaje)
+                    uiState = if (e is PrestamoYaDevueltoException) {
+                        // Lo devolvió otro celular mientras tanto: diálogo, y al cerrarlo, al escáner.
+                        ultimoCodigoRechazado = prestamo.codigoComputadora
+                        uiState.copy(isLoading = false, aviso = avisoPrestamoYaDevuelto(prestamo.codigoComputadora))
+                    } else {
+                        uiState.copy(isLoading = false, errorConfirmacion = e.message)
+                    }
                 }
         }
     }

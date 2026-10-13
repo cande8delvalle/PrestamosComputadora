@@ -10,6 +10,7 @@ import com.ien.prestamoscomputadoras.data.remote.SupabaseGuardiaSesion
 import com.ien.prestamoscomputadoras.data.remote.llamarConSesion
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Order
 import kotlin.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerialName
@@ -29,6 +30,19 @@ data class PrestamoEncontrado(
     val observacionesIniciales: String? = null,
 )
 
+/** Qué se encontró al identificar una computadora para devolverla. */
+sealed interface BusquedaDevolucion {
+
+    /** Tiene un préstamo ACTIVO: se puede registrar la devolución. */
+    data class ConPrestamoActivo(val prestamo: PrestamoEncontrado) : BusquedaDevolucion
+
+    /** a) Nunca tuvo préstamos (o ese código no está registrado). */
+    data class SinPrestamos(val codigoComputadora: String) : BusquedaDevolucion
+
+    /** b) Tuvo préstamos, pero ninguno activo: ya fue devuelta. */
+    data class YaDevuelta(val codigoComputadora: String, val ultimaDevolucion: Instant?) : BusquedaDevolucion
+}
+
 /** El préstamo ya no estaba ACTIVO al confirmar (p. ej. lo devolvió otro usuario recién). */
 class PrestamoYaDevueltoException : ErrorDeNegocio("El préstamo ya fue devuelto")
 
@@ -42,8 +56,11 @@ class RevisionNoGuardadaException(causa: Throwable) :
 /** Todo lo que necesita la pantalla "Registrar Devolución". */
 interface DevolucionRepository {
 
-    /** `null` si ese código no tiene un préstamo ACTIVO. */
-    suspend fun buscarPrestamoActivo(codigoComputadora: String): Result<PrestamoEncontrado?>
+    /**
+     * Busca la computadora [codigoComputadora] para devolverla: su préstamo ACTIVO o, si no
+     * tiene, si nunca tuvo préstamos o ya fue devuelta (con la fecha de la última devolución).
+     */
+    suspend fun buscarParaDevolucion(codigoComputadora: String): Result<BusquedaDevolucion>
 
     /**
      * Cierra el préstamo (lo pasa a DEVUELTO) y guarda la revisión del equipo. Quién lo
@@ -70,28 +87,34 @@ class SupabaseDevolucionRepository(
     private val guardia: GuardiaSesion = SupabaseGuardiaSesion(supabase),
 ) : DevolucionRepository {
 
-    override suspend fun buscarPrestamoActivo(codigoComputadora: String): Result<PrestamoEncontrado?> =
+    override suspend fun buscarParaDevolucion(codigoComputadora: String): Result<BusquedaDevolucion> =
         llamarConSesion(guardia) {
-            // La vista ya trae el alumno y el código resueltos: una sola consulta.
-            supabase.from("historial_prestamos")
+            // Una sola consulta a la vista (ya trae alumno y código resueltos). Orden:
+            // "ACTIVO" < "DEVUELTO", así el activo (si hay) sale primero; si no, la devolución
+            // más reciente.
+            val fila = supabase.from("historial_prestamos")
                 .select {
-                    filter {
-                        eq("computadora_codigo", codigoComputadora)
-                        eq("estado", Prestamo.ESTADO_ACTIVO)
-                    }
+                    filter { eq("computadora_codigo", codigoComputadora) }
+                    order("estado", Order.ASCENDING)
+                    order("fecha_devolucion", Order.DESCENDING)
                     limit(1)
                 }
                 .decodeSingleOrNull<PrestamoHistorial>()
-                ?.let {
+            when {
+                fila == null -> BusquedaDevolucion.SinPrestamos(codigoComputadora)
+                fila.estado != Prestamo.ESTADO_ACTIVO ->
+                    BusquedaDevolucion.YaDevuelta(fila.computadoraCodigo, fila.fechaDevolucion)
+                else -> BusquedaDevolucion.ConPrestamoActivo(
                     PrestamoEncontrado(
-                        idPrestamo = it.idPrestamo,
-                        nombreAlumno = "${it.alumnoNombre} ${it.alumnoApellido}",
-                        dniAlumno = it.alumnoDni,
-                        codigoComputadora = it.computadoraCodigo,
-                        fechaPrestamo = it.fechaPrestamo,
-                        observacionesIniciales = it.observacionesIniciales?.trim()?.ifEmpty { null },
-                    )
-                }
+                        idPrestamo = fila.idPrestamo,
+                        nombreAlumno = "${fila.alumnoNombre} ${fila.alumnoApellido}",
+                        dniAlumno = fila.alumnoDni,
+                        codigoComputadora = fila.computadoraCodigo,
+                        fechaPrestamo = fila.fechaPrestamo,
+                        observacionesIniciales = fila.observacionesIniciales?.trim()?.ifEmpty { null },
+                    ),
+                )
+            }
         }
 
     override suspend fun registrarDevolucion(

@@ -93,14 +93,93 @@ class RegistrarDevolucionViewModelTest {
         assertNull(vm.uiState.prestamoEncontrado!!.observacionesIniciales)
     }
 
+    // --- Diálogo "Esta computadora no tiene préstamo" -----------------------------------
+
     @Test
-    fun qrSinPrestamoActivo_muestraErrorYSigueEscaneando() {
-        listOf("PC-07", "PC-99").forEach { codigo ->
-            val vm = nuevoVm()
-            vm.onCodigoEscaneado(codigo)
-            assertEquals(EtapaDevolucion.ESCANEANDO, vm.uiState.etapaActual)
-            assertEquals(ERROR_SIN_PRESTAMO_ACTIVO, vm.uiState.errorEscaneo)
-        }
+    fun casoA_computadoraSinNingunPrestamo() {
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-07")
+
+        assertEquals(EtapaDevolucion.ESCANEANDO, vm.uiState.etapaActual)
+        assertEquals(
+            AvisoUi(
+                "Esta computadora no tiene préstamo",
+                "PC-07 todavía no tiene ningún préstamo registrado. Revisá que sea el equipo correcto.",
+            ),
+            vm.uiState.aviso,
+        )
+        assertNull(vm.uiState.errorEscaneo)
+        assertFalse(vm.uiState.buscando)
+    }
+
+    @Test
+    fun casoA_codigoQueNoExiste() {
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-99")
+        assertEquals(avisoNuncaPrestada("PC-99"), vm.uiState.aviso)
+    }
+
+    @Test
+    fun casoB_yaDevuelta_conFechaYHoraEnArgentina() = runTest {
+        // PC-07 tuvo un préstamo que se devolvió el 30/09 a las 10:45 (Argentina).
+        repo.insertar(NuevoPrestamo(idAlumno = 1, idComputadora = 7, idUsuarioPrestamo = 1))
+        repo.ahoraServidor = fechaAr(9, 30, 10, 45)
+        repo.devolverDirecto(2)
+
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-07")
+
+        assertEquals(
+            AvisoUi(
+                "Esta computadora no tiene préstamo",
+                "PC-07 ya figura como devuelta (última devolución: 30/09/2026 · 10:45 hs). " +
+                    "Revisá que sea el equipo correcto.",
+            ),
+            vm.uiState.aviso,
+        )
+    }
+
+    @Test
+    fun sinProblema_prestamoActivo_noHayAviso() {
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-12")
+        assertNull(vm.uiState.aviso)
+        assertEquals(EtapaDevolucion.CONFIRMANDO, vm.uiState.etapaActual)
+    }
+
+    @Test
+    fun conElDialogoAbierto_noSeProcesanMasQr() {
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-07")
+        val aviso = vm.uiState.aviso
+
+        // La cámara sigue leyendo (el mismo QR u otro) mientras el diálogo está abierto.
+        reloj += 10_000
+        vm.onCodigoEscaneado("PC-07")
+        vm.onCodigoEscaneado("PC-12")
+
+        assertEquals(aviso, vm.uiState.aviso)
+        assertEquals(EtapaDevolucion.ESCANEANDO, vm.uiState.etapaActual)
+    }
+
+    @Test
+    fun alCerrar_vuelveAlEscanerYNoSeRepiteEnLoop() {
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-07")
+        reloj += 10_000 // el usuario tarda en leer el diálogo
+        vm.onAvisoAceptado()
+
+        assertNull(vm.uiState.aviso)
+        assertEquals(EtapaDevolucion.ESCANEANDO, vm.uiState.etapaActual)
+
+        // El QR sigue frente a la cámara: no vuelve a abrirse enseguida.
+        reloj += 1_000
+        vm.onCodigoEscaneado("PC-07")
+        assertNull(vm.uiState.aviso)
+
+        // Otro QR sí se procesa enseguida.
+        vm.onCodigoEscaneado("PC-12")
+        assertEquals(EtapaDevolucion.CONFIRMANDO, vm.uiState.etapaActual)
     }
 
     @Test
@@ -114,18 +193,18 @@ class RegistrarDevolucionViewModelTest {
     }
 
     @Test
-    fun mismoCodigoRechazado_seIgnoraUnosSegundos() {
+    fun mismoCodigoRechazado_seIgnoraUnosSegundosDespuesDeCerrar() {
         val vm = nuevoVm()
         vm.onCodigoEscaneado("PC-07")
-        vm.onErrorEscaneoMostrado()
+        vm.onAvisoAceptado()
 
         reloj += 1_000
         vm.onCodigoEscaneado("PC-07")
-        assertNull(vm.uiState.errorEscaneo)
+        assertNull(vm.uiState.aviso)
 
         reloj += 3_000
         vm.onCodigoEscaneado("PC-07")
-        assertEquals(ERROR_SIN_PRESTAMO_ACTIVO, vm.uiState.errorEscaneo)
+        assertEquals(avisoNuncaPrestada("PC-07"), vm.uiState.aviso)
     }
 
     @Test
@@ -170,15 +249,20 @@ class RegistrarDevolucionViewModelTest {
     }
 
     @Test
-    fun prestamoYaDevueltoDesdeOtroCelular_noGuardaRevisionYMuestraError() {
+    fun prestamoYaDevueltoDesdeOtroCelular_dialogoYAlCerrarVuelveAlEscaner() {
         val vm = nuevoVm().apply { onCodigoEscaneado("PC-12") }
         repo.devolverDirecto(1, quien = 2)
 
         vm.onConfirmarClick()
 
         assertTrue(repo.revisiones.isEmpty())
-        assertEquals(ERROR_PRESTAMO_YA_DEVUELTO, vm.uiState.errorConfirmacion)
+        assertEquals(avisoPrestamoYaDevuelto("PC-12"), vm.uiState.aviso)
+        assertEquals("Este préstamo ya fue devuelto", vm.uiState.aviso?.titulo)
         assertFalse(vm.uiState.mostrarModalExito)
+        assertFalse(vm.uiState.isLoading)
+
+        vm.onAvisoAceptado()
+        assertEquals(RegistrarDevolucionUiState(), vm.uiState)
     }
 
     @Test
@@ -215,7 +299,8 @@ class RegistrarDevolucionViewModelTest {
             onCodigoEscaneado("PC-12")
         }
         assertEquals(EtapaDevolucion.ESCANEANDO, vm.uiState.etapaActual)
-        assertEquals(ERROR_SIN_PRESTAMO_ACTIVO, vm.uiState.errorEscaneo)
+        // Caso b: ya fue devuelta (a las 08:00, la hora del "servidor" falso).
+        assertEquals(avisoYaDevuelta("PC-12", fechaAr(9, 30, 8)), vm.uiState.aviso)
     }
 
     @Test

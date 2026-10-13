@@ -92,6 +92,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
+import com.ien.prestamoscomputadoras.ui.components.AvisoDialogo
 import com.ien.prestamoscomputadoras.ui.components.CampoTexto
 import com.ien.prestamoscomputadoras.data.repository.PrestamoEncontrado
 import com.ien.prestamoscomputadoras.ui.components.BackHeader
@@ -138,6 +139,12 @@ fun RegistrarDevolucionScreen(
 
     BackHandler(enabled = confirmando && !uiState.mostrarModalExito) {
         viewModel.volverAEscanear()
+    }
+
+    // Computadora sin préstamo / préstamo ya devuelto: diálogo centrado que solo se cierra con
+    // "Entendido". Al cerrarlo se vuelve al escáner (lo decide el ViewModel).
+    uiState.aviso?.let { aviso ->
+        AvisoDialogo(titulo = aviso.titulo, mensaje = aviso.mensaje, onAceptar = viewModel::onAvisoAceptado)
     }
 
     val snackbarHostState = remember { SnackbarHostState() }

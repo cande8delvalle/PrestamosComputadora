@@ -22,7 +22,6 @@ const val ERROR_SELECCIONAR_ALUMNO = "Debés seleccionar un alumno"
 const val ERROR_SELECCIONAR_COMPUTADORA = "Debés seleccionar una computadora"
 const val ERROR_SIN_SESION = "No hay una sesión iniciada. Volvé a iniciar sesión."
 const val ERROR_GUARDAR_PRESTAMO = "No se pudo registrar el préstamo. Intentá de nuevo."
-const val ERROR_COMPUTADORA_YA_PRESTADA = "Esa computadora ya está prestada. Elegí otra."
 
 /** Estado de la pantalla "Nuevo Préstamo". Inmutable: se regenera con [copy]. */
 data class RegistrarPrestamoUiState(
@@ -41,6 +40,8 @@ data class RegistrarPrestamoUiState(
     val mostrarModalExito: Boolean = false,
     /** `true` si no se pudieron cargar las listas (p. ej. sin internet). */
     val errorListas: Boolean = false,
+    /** Aviso en diálogo centrado (p. ej. la computadora la prestó otro celular recién). */
+    val aviso: AvisoUi? = null,
 ) {
     /** Solo si las listas se cargaron bien: un error de red no es "no hay computadoras". */
     val sinComputadorasDisponibles: Boolean
@@ -95,8 +96,8 @@ class RegistrarPrestamoViewModel(
      * 2. Sin usuario en [SesionActual] -> [ERROR_SIN_SESION] (no se puede guardar el FK).
      * 3. Si todo pasa, se inserta el préstamo ACTIVO (la fecha/hora la pone el servidor) y se
      *    muestra el modal de éxito. Si la base avisa que la computadora ya está prestada (otro
-     *    celular la prestó recién), se muestra [ERROR_COMPUTADORA_YA_PRESTADA] y se recargan
-     *    las listas.
+     *    celular la prestó recién), se muestra el diálogo [avisoComputadoraYaPrestada] y se
+     *    recargan las listas.
      */
     fun onRegistrarClick() {
         val s = uiState
@@ -116,6 +117,8 @@ class RegistrarPrestamoViewModel(
             return
         }
 
+        // Para el aviso, por si otro celular la presta mientras tanto (ej: "PC-07").
+        val codigoElegido = s.computadoraSeleccionada!!.codigo
         val prestamo = NuevoPrestamo(
             idAlumno = s.alumnoSeleccionado!!.idAlumno,
             idComputadora = s.computadoraSeleccionada!!.idComputadora,
@@ -131,7 +134,7 @@ class RegistrarPrestamoViewModel(
                     if (e is ErrorDatos.Duplicado && e.restriccion == RESTRICCION_UN_ACTIVO_POR_COMPUTADORA) {
                         uiState = uiState.copy(isLoading = false, computadoraSeleccionada = null)
                         cargarListas()
-                        uiState = uiState.copy(errorComputadora = ERROR_COMPUTADORA_YA_PRESTADA)
+                        uiState = uiState.copy(aviso = avisoComputadoraYaPrestada(codigoElegido))
                     } else {
                         uiState = uiState.copy(
                             isLoading = false,
@@ -150,6 +153,11 @@ class RegistrarPrestamoViewModel(
     fun onRealizarOtroClick() {
         uiState = RegistrarPrestamoUiState()
         cargarListas()
+    }
+
+    /** "Entendido" del diálogo de aviso. */
+    fun onAvisoAceptado() {
+        uiState = uiState.copy(aviso = null)
     }
 
     /** "Volver al inicio": cierra el modal. La navegación a Home la hace la UI. */

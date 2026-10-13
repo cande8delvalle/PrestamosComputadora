@@ -43,6 +43,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ien.prestamoscomputadoras.ui.components.AvisoDialogo
 import com.ien.prestamoscomputadoras.ui.components.CampoTexto
 import com.ien.prestamoscomputadoras.ui.components.MensajeError
 import com.ien.prestamoscomputadoras.data.model.Alumno
@@ -94,6 +95,11 @@ fun RegistrarPrestamoScreen(
         onVolverClick = onVolverClick,
         modifier = modifier,
     )
+
+    // Otro celular prestó la computadora elegida mientras tanto.
+    viewModel.uiState.aviso?.let { aviso ->
+        AvisoDialogo(titulo = aviso.titulo, mensaje = aviso.mensaje, onAceptar = viewModel::onAvisoAceptado)
+    }
 }
 
 @Composable

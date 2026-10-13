@@ -126,11 +126,15 @@ class RegistrarPrestamoViewModelTest {
 
         vm.onRegistrarClick()
 
-        assertEquals(ERROR_COMPUTADORA_YA_PRESTADA, vm.uiState.errorComputadora)
+        assertEquals(avisoComputadoraYaPrestada("PC-07"), vm.uiState.aviso)
+        assertEquals("Esa computadora ya está prestada", vm.uiState.aviso?.titulo)
         assertNull(vm.uiState.computadoraSeleccionada)
         assertEquals(listOf(pc12), vm.uiState.computadorasDisponibles)
         assertFalse(vm.uiState.mostrarModalExito)
         assertEquals(1, repo.prestamos.size)
+
+        vm.onAvisoAceptado()
+        assertNull(vm.uiState.aviso)
     }
 
     @Test
