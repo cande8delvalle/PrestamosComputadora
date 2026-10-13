@@ -22,11 +22,19 @@ import com.ien.prestamoscomputadoras.ui.theme.IenPurpleDark
  * Campo de texto único de la app. Todas las pantallas lo usan, así el estilo se cambia en un
  * solo lugar:
  * - Lo que escribe el usuario: violeta oscuro y semibold (bien distinto del placeholder).
- * - El placeholder: color claro del tema y peso normal.
+ * - El placeholder: gris violáceo medio y peso normal. Se lee bien pero no se confunde con
+ *   lo escrito (más claro y sin negrita).
  */
 
 /** Color de lo que escribe el usuario: el de mayor contraste de la app. */
 val ColorTextoEscrito = IenPurpleDark
+
+/**
+ * Color del placeholder (los ejemplos). Contraste medido con la fórmula de WCAG:
+ * 6,6:1 sobre blanco y 4,5:1 sobre el lavanda de los formularios (IenLavenderDark).
+ * Antes se usaba el gris del tema, que sobre lavanda quedaba por debajo de 4,5:1.
+ */
+val ColorPlaceholder = Color(0xFF625873)
 
 /** Estilo de lo que escribe el usuario. */
 @Composable
@@ -47,6 +55,10 @@ fun coloresCampo(fondo: FondoCampo): TextFieldColors {
     val textoEscrito = ColorTextoEscrito
     return when (fondo) {
         FondoCampo.BLANCO -> OutlinedTextFieldDefaults.colors(
+            focusedPlaceholderColor = ColorPlaceholder,
+            unfocusedPlaceholderColor = ColorPlaceholder,
+            errorPlaceholderColor = ColorPlaceholder,
+            disabledPlaceholderColor = ColorPlaceholder.copy(alpha = 0.6f),
             focusedTextColor = textoEscrito,
             unfocusedTextColor = textoEscrito,
             errorTextColor = textoEscrito,
@@ -66,6 +78,10 @@ fun coloresCampo(fondo: FondoCampo): TextFieldColors {
         )
 
         FondoCampo.LAVANDA -> OutlinedTextFieldDefaults.colors(
+            focusedPlaceholderColor = ColorPlaceholder,
+            unfocusedPlaceholderColor = ColorPlaceholder,
+            errorPlaceholderColor = ColorPlaceholder,
+            disabledPlaceholderColor = ColorPlaceholder.copy(alpha = 0.6f),
             focusedTextColor = textoEscrito,
             unfocusedTextColor = textoEscrito,
             errorTextColor = textoEscrito,
@@ -113,7 +129,7 @@ fun CampoTexto(
         enabled = enabled,
         readOnly = readOnly,
         textStyle = estiloTextoEscrito(),
-        // El placeholder conserva el color claro del tema y el peso normal.
+        // El placeholder: ColorPlaceholder (en coloresCampo) y peso normal.
         placeholder = placeholder?.let { texto -> { Text(texto, fontWeight = FontWeight.Normal) } },
         leadingIcon = leadingIcon,
         trailingIcon = trailingIcon,
