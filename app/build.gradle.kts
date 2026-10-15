@@ -3,7 +3,6 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.ksp)
     // @Serializable: convierte los modelos a/desde el JSON que manda Supabase.
     alias(libs.plugins.kotlin.serialization)
 }
@@ -63,9 +62,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.navigation.compose)
-    implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
-    ksp(libs.androidx.room.compiler)
     // Supabase: base de datos (Postgrest), login (Auth) y cambios en vivo (Realtime).
     // El BOM fija la misma versión para los tres módulos.
     implementation(platform(libs.supabase.bom))
