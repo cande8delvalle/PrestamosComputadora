@@ -10,7 +10,7 @@ Los datos, el login y las actualizaciones en tiempo real usan [Supabase](https:/
 1. Copiar `local.properties.example` como `local.properties` (en la raíz del proyecto).
 2. Completar, con los datos de Supabase > Project Settings > API:
    - `SUPABASE_URL`: la Project URL (ej: `https://xxxxxxxx.supabase.co`).
-   - `SUPABASE_KEY`: la clave **publishable** (`sb_publishable_...`).
+   - `SUPABASE_KEY`: la clave **publishable** (la que empieza con `sb_publishable`).
 
 `local.properties` no se sube a Git. La clave **secret** (o `service_role`) nunca va en la app
 ni en el repositorio: da acceso total a la base y saltea las reglas de seguridad (RLS).

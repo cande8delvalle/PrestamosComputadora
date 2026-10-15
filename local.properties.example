@@ -3,7 +3,7 @@
 #
 # Datos en Supabase > Project Settings > API:
 #   SUPABASE_URL: Project URL, ej: https://xxxxxxxx.supabase.co
-#   SUPABASE_KEY: la clave PUBLISHABLE (sb_publishable_...). NUNCA la secret ni la service_role.
+#   SUPABASE_KEY: la clave PUBLISHABLE (la que empieza con sb_publishable). NUNCA la secret ni la service_role.
 sdk.dir=
 SUPABASE_URL=
 SUPABASE_KEY=
