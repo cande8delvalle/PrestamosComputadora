@@ -9,7 +9,7 @@ import kotlinx.serialization.Serializable
  *
  * - @Serializable: kotlinx-serialization sabe convertirlos a/desde el JSON que manda Supabase.
  * - @SerialName("id_alumno"): el nombre EXACTO de la columna (snake_case) en
- *   supabase/migrations/20261012_schema_inicial.sql. En Kotlin se sigue usando camelCase.
+ *   supabase/migrations/20261012000000_schema_inicial.sql. En Kotlin se sigue usando camelCase.
  * - Fechas: las columnas son timestamptz y llegan como [Instant] (un instante, sin zona).
  *   Para mostrarlas se pasan a la hora de Argentina con ZONA_ARGENTINA (ver Fechas.kt).
  *

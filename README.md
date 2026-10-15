@@ -20,8 +20,8 @@ ni en el repositorio: da acceso total a la base y saltea las reglas de seguridad
 El esquema está en `supabase/migrations`. Correr cada archivo en el SQL Editor de Supabase,
 en este orden:
 
-1. `20261012_schema_inicial.sql`
-2. `20261012_devolucion_trigger.sql`
+1. `20261012000000_schema_inicial.sql`
+2. `20261012000001_devolucion_trigger.sql`
 
 ### 3. Compilar
 
