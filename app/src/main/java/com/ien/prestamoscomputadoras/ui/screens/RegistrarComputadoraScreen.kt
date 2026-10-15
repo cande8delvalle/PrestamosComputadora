@@ -19,7 +19,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -30,11 +29,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ien.prestamoscomputadoras.ui.components.CampoTexto
+import com.ien.prestamoscomputadoras.ui.components.MensajeError
 import com.ien.prestamoscomputadoras.ui.components.BackHeader
 import com.ien.prestamoscomputadoras.ui.components.ExitoOverlay
 import com.ien.prestamoscomputadoras.ui.components.FormError
 import com.ien.prestamoscomputadoras.ui.components.FormLabel
-import com.ien.prestamoscomputadoras.ui.components.lavenderFieldColors
 import com.ien.prestamoscomputadoras.ui.theme.IenCream
 import com.ien.prestamoscomputadoras.ui.theme.IenLavender
 import com.ien.prestamoscomputadoras.ui.theme.IenPurple
@@ -114,39 +114,40 @@ private fun RegistrarComputadoraContent(
                 ) {
                     Column {
                         FormLabel("CÓDIGO DE IDENTIFICACIÓN")
-                        OutlinedTextField(
+                        CampoTexto(
                             value = uiState.codigo,
                             onValueChange = onCodigoChange,
                             modifier = Modifier.fillMaxWidth(),
                             enabled = !uiState.isLoading,
                             singleLine = true,
-                            placeholder = { Text("Ej: PC-11") },
+                            placeholder = "Ej: PC-11",
                             keyboardOptions = KeyboardOptions(
                                 capitalization = KeyboardCapitalization.Characters,
                             ),
                             isError = uiState.errorCodigo != null,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = lavenderFieldColors(),
                         )
                         FormError(uiState.errorCodigo)
                     }
 
                     Column {
                         FormLabel("MODELO (OPCIONAL)")
-                        OutlinedTextField(
+                        CampoTexto(
                             value = uiState.modelo,
                             onValueChange = onModeloChange,
                             modifier = Modifier.fillMaxWidth(),
                             enabled = !uiState.isLoading,
                             singleLine = true,
-                            placeholder = { Text("Ej: ProBook 440 G8") },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = lavenderFieldColors(),
+                            placeholder = "Ej: ProBook 440 G8",
                         )
                     }
                 }
 
                 Spacer(Modifier.height(24.dp))
+
+                uiState.errorGeneral?.let { error ->
+                    MensajeError(texto = error)
+                    Spacer(Modifier.height(12.dp))
+                }
 
                 Button(
                     onClick = onRegistrarClick,

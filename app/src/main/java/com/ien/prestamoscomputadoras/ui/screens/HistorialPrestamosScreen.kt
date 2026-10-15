@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ien.prestamoscomputadoras.ui.components.AlertaPrestamoSheet
 import com.ien.prestamoscomputadoras.ui.components.DetallePrestamoSheet
+import com.ien.prestamoscomputadoras.ui.components.MensajeError
 import com.ien.prestamoscomputadoras.ui.components.AmbarObservacion
 import com.ien.prestamoscomputadoras.ui.components.BackHeader
 import com.ien.prestamoscomputadoras.ui.components.RojoDanio
@@ -56,6 +57,7 @@ import com.ien.prestamoscomputadoras.ui.theme.IenGreyText
 import com.ien.prestamoscomputadoras.ui.theme.IenPurple
 import com.ien.prestamoscomputadoras.ui.theme.IenPurpleDark
 import com.ien.prestamoscomputadoras.ui.theme.PrestamosComputadorasTheme
+import com.ien.prestamoscomputadoras.ui.components.HoraConFlecha
 import com.ien.prestamoscomputadoras.viewmodel.EstadoPrestamo
 import com.ien.prestamoscomputadoras.viewmodel.FiltroHistorial
 import com.ien.prestamoscomputadoras.viewmodel.HistorialPrestamosUiState
@@ -86,6 +88,7 @@ fun HistorialPrestamosScreen(
         onAlertaClick = viewModel::onAlertaClick,
         onTarjetaClick = viewModel::onTarjetaClick,
         onVolverClick = onVolverClick,
+        onReintentar = viewModel::cargar,
         modifier = modifier,
     )
 
@@ -105,6 +108,7 @@ private fun HistorialPrestamosContent(
     onTarjetaClick: (TarjetaHistorial) -> Unit,
     onVolverClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onReintentar: () -> Unit = {},
 ) {
     val tarjetas = uiState.tarjetas
 
@@ -133,7 +137,7 @@ private fun HistorialPrestamosContent(
                 onClick = { onFiltroSeleccionado(FiltroHistorial.ESTA_SEMANA) },
             )
             Spacer(Modifier.weight(1f))
-            if (!uiState.cargando) {
+            if (!uiState.cargando && uiState.error == null) {
                 Text(
                     text = "${tarjetas.size} Registros",
                     color = IenGreyText,
@@ -150,6 +154,12 @@ private fun HistorialPrestamosContent(
             ) {
                 CircularProgressIndicator(color = IenPurple)
             }
+
+            uiState.error != null -> MensajeError(
+                texto = uiState.error,
+                onReintentar = onReintentar,
+                modifier = Modifier.padding(horizontal = 20.dp),
+            )
 
             tarjetas.isEmpty() -> Box(
                 modifier = Modifier
@@ -254,12 +264,11 @@ private fun TarjetaPrestamo(
 
             DatoTarjeta("DNI: ${tarjeta.dniAlumno}")
             DatoTarjeta("${tarjeta.codigoComputadora} · ${tarjeta.fechaPrestamo}")
-            DatoTarjeta(
-                if (tarjeta.horaDevolucion != null) {
-                    "↓${tarjeta.horaPrestamo} hs   ↑${tarjeta.horaDevolucion} hs"
-                } else {
-                    "↓${tarjeta.horaPrestamo} hs"
-                },
+            // Hora de la última actividad: ↑ entrega si sigue prestada, ↓ devolución si ya volvió.
+            HoraConFlecha(
+                hora = tarjeta.horaUltimaActividad,
+                evento = tarjeta.eventoUltimaActividad,
+                modifier = Modifier.padding(vertical = 1.dp),
             )
 
             if (tarjeta.observacionEntrega != null || tarjeta.danioDevolucion != null) {

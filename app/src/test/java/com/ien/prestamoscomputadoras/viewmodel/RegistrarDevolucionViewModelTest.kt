@@ -1,16 +1,19 @@
 package com.ien.prestamoscomputadoras.viewmodel
 
-import com.ien.prestamoscomputadoras.data.entity.Alumno
-import com.ien.prestamoscomputadoras.data.entity.Computadora
-import com.ien.prestamoscomputadoras.data.entity.Prestamo
-import com.ien.prestamoscomputadoras.data.repository.DevolucionRepository
+import com.ien.prestamoscomputadoras.data.model.Alumno
+import com.ien.prestamoscomputadoras.data.model.Computadora
+import com.ien.prestamoscomputadoras.data.model.NuevoPrestamo
+import com.ien.prestamoscomputadoras.data.model.Prestamo
+import com.ien.prestamoscomputadoras.data.remote.ErrorDatos
+import com.ien.prestamoscomputadoras.data.remote.MENSAJE_SIN_CONEXION
 import com.ien.prestamoscomputadoras.util.SesionActual
+import kotlin.time.Instant
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -24,22 +27,20 @@ class RegistrarDevolucionViewModelTest {
     private val pc12 = Computadora(idComputadora = 12, codigo = "PC-12")
     private val pc07 = Computadora(idComputadora = 7, codigo = "PC-07")
 
-    private val alumnoDao = FakeAlumnoDao(mutableListOf(maria))
-    private val prestamoDao = FakePrestamoYComputadoraDao(listOf(pc07, pc12))
-    private val estadoDao = FakeEstadoComputadoraDao()
+    private val repo = FakePrestamos(
+        computadoras = listOf(pc07, pc12),
+        alumnos = listOf(maria),
+        ahoraServidor = fechaAr(9, 30, 8),
+        perfilLogueado = 3,
+    )
     private var reloj = 50_000L
 
-    private fun nuevoVm() = RegistrarDevolucionViewModel(
-        DevolucionRepository(prestamoDao, alumnoDao, estadoDao, enTransaccion = { it() }),
-        ahora = { reloj },
-    )
+    private fun nuevoVm() = RegistrarDevolucionViewModel(repo, ahora = { reloj })
 
     @Before
     fun setUp() = runTest {
         SesionActual.usuarioId = 3
-        prestamoDao.insertar(
-            Prestamo(idAlumno = 1, idComputadora = 12, idUsuarioPrestamo = 1, fechaPrestamo = 10_000L),
-        )
+        repo.insertar(NuevoPrestamo(idAlumno = 1, idComputadora = 12, idUsuarioPrestamo = 1))
     }
 
     @After
@@ -59,58 +60,174 @@ class RegistrarDevolucionViewModelTest {
         assertEquals("María Gonzales", p.nombreAlumno)
         assertEquals("46111222", p.dniAlumno)
         assertEquals("PC-12", p.codigoComputadora)
-        assertEquals(10_000L, p.fechaPrestamo)
+        assertEquals(fechaAr(9, 30, 8), p.fechaPrestamo)
         assertTrue(s.enciende && s.pantallaOk && s.incluyeCargador)
         assertFalse(s.buscando)
     }
 
     @Test
-    fun qrSinPrestamoActivo_muestraErrorYSigueEscaneando() {
-        listOf("PC-07", "PC-99").forEach { codigo ->
-            val vm = nuevoVm()
-            vm.onCodigoEscaneado(codigo)
-            assertEquals(EtapaDevolucion.ESCANEANDO, vm.uiState.etapaActual)
-            assertEquals(ERROR_SIN_PRESTAMO_ACTIVO, vm.uiState.errorEscaneo)
-        }
+    fun qrDePrestamoSinObservaciones_noTraeObservacion() {
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-12")
+        assertNull(vm.uiState.prestamoEncontrado!!.observacionesIniciales)
     }
 
     @Test
-    fun mismoCodigoRechazado_seIgnoraUnosSegundos() {
+    fun qrDePrestamoConObservacionAlEntregar_laMuestraCompleta() = runTest {
+        repo.insertar(
+            NuevoPrestamo(
+                idAlumno = 1, idComputadora = 7, idUsuarioPrestamo = 1,
+                observacionesIniciales = "Rayón en la tapa y tecla F5 floja.",
+            ),
+        )
         val vm = nuevoVm()
         vm.onCodigoEscaneado("PC-07")
-        vm.onErrorEscaneoMostrado()
+        assertEquals("Rayón en la tapa y tecla F5 floja.", vm.uiState.prestamoEncontrado!!.observacionesIniciales)
+    }
+
+    @Test
+    fun observacionSoloConEspacios_noSeMuestra() = runTest {
+        repo.insertar(NuevoPrestamo(idAlumno = 1, idComputadora = 7, idUsuarioPrestamo = 1, observacionesIniciales = "   "))
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-07")
+        assertNull(vm.uiState.prestamoEncontrado!!.observacionesIniciales)
+    }
+
+    // --- Diálogo "Esta computadora no tiene préstamo" -----------------------------------
+
+    @Test
+    fun casoA_computadoraSinNingunPrestamo() {
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-07")
+
+        assertEquals(EtapaDevolucion.ESCANEANDO, vm.uiState.etapaActual)
+        assertEquals(
+            AvisoUi(
+                "Esta computadora no tiene préstamo",
+                "PC-07 todavía no tiene ningún préstamo registrado. Revisá que sea el equipo correcto.",
+            ),
+            vm.uiState.aviso,
+        )
+        assertNull(vm.uiState.errorEscaneo)
+        assertFalse(vm.uiState.buscando)
+    }
+
+    @Test
+    fun casoA_codigoQueNoExiste() {
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-99")
+        assertEquals(avisoNuncaPrestada("PC-99"), vm.uiState.aviso)
+    }
+
+    @Test
+    fun casoB_yaDevuelta_conFechaYHoraEnArgentina() = runTest {
+        // PC-07 tuvo un préstamo que se devolvió el 30/09 a las 10:45 (Argentina).
+        repo.insertar(NuevoPrestamo(idAlumno = 1, idComputadora = 7, idUsuarioPrestamo = 1))
+        repo.ahoraServidor = fechaAr(9, 30, 10, 45)
+        repo.devolverDirecto(2)
+
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-07")
+
+        assertEquals(
+            AvisoUi(
+                "Esta computadora no tiene préstamo",
+                "PC-07 ya figura como devuelta (última devolución: 30/09/2026 · 10:45 hs). " +
+                    "Revisá que sea el equipo correcto.",
+            ),
+            vm.uiState.aviso,
+        )
+    }
+
+    @Test
+    fun sinProblema_prestamoActivo_noHayAviso() {
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-12")
+        assertNull(vm.uiState.aviso)
+        assertEquals(EtapaDevolucion.CONFIRMANDO, vm.uiState.etapaActual)
+    }
+
+    @Test
+    fun conElDialogoAbierto_noSeProcesanMasQr() {
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-07")
+        val aviso = vm.uiState.aviso
+
+        // La cámara sigue leyendo (el mismo QR u otro) mientras el diálogo está abierto.
+        reloj += 10_000
+        vm.onCodigoEscaneado("PC-07")
+        vm.onCodigoEscaneado("PC-12")
+
+        assertEquals(aviso, vm.uiState.aviso)
+        assertEquals(EtapaDevolucion.ESCANEANDO, vm.uiState.etapaActual)
+    }
+
+    @Test
+    fun alCerrar_vuelveAlEscanerYNoSeRepiteEnLoop() {
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-07")
+        reloj += 10_000 // el usuario tarda en leer el diálogo
+        vm.onAvisoAceptado()
+
+        assertNull(vm.uiState.aviso)
+        assertEquals(EtapaDevolucion.ESCANEANDO, vm.uiState.etapaActual)
+
+        // El QR sigue frente a la cámara: no vuelve a abrirse enseguida.
+        reloj += 1_000
+        vm.onCodigoEscaneado("PC-07")
+        assertNull(vm.uiState.aviso)
+
+        // Otro QR sí se procesa enseguida.
+        vm.onCodigoEscaneado("PC-12")
+        assertEquals(EtapaDevolucion.CONFIRMANDO, vm.uiState.etapaActual)
+    }
+
+    @Test
+    fun sinInternetAlEscanear_avisaYSigueEscaneando() {
+        repo.falla = ErrorDatos.SinConexion()
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-12")
+        assertEquals(EtapaDevolucion.ESCANEANDO, vm.uiState.etapaActual)
+        assertEquals(MENSAJE_SIN_CONEXION, vm.uiState.errorEscaneo)
+        assertFalse(vm.uiState.buscando)
+    }
+
+    @Test
+    fun mismoCodigoRechazado_seIgnoraUnosSegundosDespuesDeCerrar() {
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-07")
+        vm.onAvisoAceptado()
 
         reloj += 1_000
         vm.onCodigoEscaneado("PC-07")
-        assertNull(vm.uiState.errorEscaneo)
+        assertNull(vm.uiState.aviso)
 
         reloj += 3_000
         vm.onCodigoEscaneado("PC-07")
-        assertEquals(ERROR_SIN_PRESTAMO_ACTIVO, vm.uiState.errorEscaneo)
+        assertEquals(avisoNuncaPrestada("PC-07"), vm.uiState.aviso)
     }
 
     @Test
-    fun confirmar_guardaRevisionYMarcaDevuelto() {
+    fun confirmar_guardaRevisionYElTriggerCompletaFechaYQuienRecibio() {
         val vm = nuevoVm().apply {
             onCodigoEscaneado("PC-12")
             onIncluyeCargadorChange(false)
             onObservacionesChange("  Falta el cargador  ")
         }
-        reloj = 90_000L
+        repo.ahoraServidor = fechaAr(9, 30, 11)
         vm.onConfirmarClick()
 
-        val estado = estadoDao.estados.single()
+        val estado = repo.revisiones.single()
         assertEquals(1L, estado.idPrestamo)
         assertTrue(estado.enciende)
         assertTrue(estado.pantallaOk)
         assertFalse(estado.cargador)
         assertEquals("Falta el cargador", estado.observaciones)
-        assertEquals(90_000L, estado.fechaRevision)
 
-        val prestamo = prestamoDao.prestamos.single()
+        val prestamo = repo.prestamos.single()
         assertEquals(Prestamo.ESTADO_DEVUELTO, prestamo.estado)
-        assertEquals(90_000L, prestamo.fechaDevolucion)
-        // Quien entregó no cambia; quien recibió es el usuario de la sesión.
+        assertEquals(fechaAr(9, 30, 11), prestamo.fechaDevolucion)
+        // Quien entregó no cambia; quien recibió es el usuario logueado.
         assertEquals(1L, prestamo.idUsuarioPrestamo)
         assertEquals(3L, prestamo.idUsuarioDevolucion)
 
@@ -125,21 +242,38 @@ class RegistrarDevolucionViewModelTest {
 
         vm.onConfirmarClick()
 
-        assertTrue(estadoDao.estados.isEmpty())
-        assertEquals(Prestamo.ESTADO_ACTIVO, prestamoDao.prestamos.single().estado)
+        assertTrue(repo.revisiones.isEmpty())
+        assertEquals(Prestamo.ESTADO_ACTIVO, repo.prestamos.single().estado)
         assertEquals(ERROR_SIN_SESION, vm.uiState.errorConfirmacion)
         assertFalse(vm.uiState.mostrarModalExito)
     }
 
     @Test
-    fun prestamoYaDevuelto_noGuardaRevisionYMuestraError() = runTest {
+    fun prestamoYaDevueltoDesdeOtroCelular_dialogoYAlCerrarVuelveAlEscaner() {
         val vm = nuevoVm().apply { onCodigoEscaneado("PC-12") }
-        prestamoDao.actualizarDevolucion(1, 60_000L, idUsuarioDevolucion = 2)
+        repo.devolverDirecto(1, quien = 2)
 
         vm.onConfirmarClick()
 
-        assertTrue(estadoDao.estados.isEmpty())
-        assertEquals(ERROR_PRESTAMO_YA_DEVUELTO, vm.uiState.errorConfirmacion)
+        assertTrue(repo.revisiones.isEmpty())
+        assertEquals(avisoPrestamoYaDevuelto("PC-12"), vm.uiState.aviso)
+        assertEquals("Este préstamo ya fue devuelto", vm.uiState.aviso?.titulo)
+        assertFalse(vm.uiState.mostrarModalExito)
+        assertFalse(vm.uiState.isLoading)
+
+        vm.onAvisoAceptado()
+        assertEquals(RegistrarDevolucionUiState(), vm.uiState)
+    }
+
+    @Test
+    fun sinInternetAlConfirmar_muestraMensajeClaro() {
+        val vm = nuevoVm().apply { onCodigoEscaneado("PC-12") }
+        repo.falla = ErrorDatos.SinConexion()
+
+        vm.onConfirmarClick()
+
+        assertEquals(MENSAJE_SIN_CONEXION, vm.uiState.errorConfirmacion)
+        assertFalse(vm.uiState.isLoading)
         assertFalse(vm.uiState.mostrarModalExito)
     }
 
@@ -152,8 +286,8 @@ class RegistrarDevolucionViewModelTest {
         }
 
         assertEquals(RegistrarDevolucionUiState(), vm.uiState)
-        assertTrue(estadoDao.estados.isEmpty())
-        assertEquals(Prestamo.ESTADO_ACTIVO, prestamoDao.prestamos.single().estado)
+        assertTrue(repo.revisiones.isEmpty())
+        assertEquals(Prestamo.ESTADO_ACTIVO, repo.prestamos.single().estado)
     }
 
     @Test
@@ -165,12 +299,13 @@ class RegistrarDevolucionViewModelTest {
             onCodigoEscaneado("PC-12")
         }
         assertEquals(EtapaDevolucion.ESCANEANDO, vm.uiState.etapaActual)
-        assertEquals(ERROR_SIN_PRESTAMO_ACTIVO, vm.uiState.errorEscaneo)
+        // Caso b: ya fue devuelta (a las 08:00, la hora del "servidor" falso).
+        assertEquals(avisoYaDevuelta("PC-12", fechaAr(9, 30, 8)), vm.uiState.aviso)
     }
 
     @Test
-    fun formatoFechaDevolucion() {
-        val texto = formatearFechaHoraDevolucion(0L)
-        assertTrue(texto, Regex("""\d{2}/\d{2}/\d{4} · \d{2}:\d{2} hs""").matches(texto))
+    fun formatoFechaDevolucion_enHoraArgentina() {
+        // 30/09/2026 20:46 UTC = 17:46 en Argentina.
+        assertEquals("30/09/2026 · 17:46 hs", formatearFechaHoraDevolucion(Instant.parse("2026-09-30T20:46:00Z")))
     }
 }

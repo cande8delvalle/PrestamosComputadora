@@ -34,8 +34,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -53,6 +51,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ien.prestamoscomputadoras.ui.components.CampoTexto
+import com.ien.prestamoscomputadoras.ui.components.FondoCampo
+import com.ien.prestamoscomputadoras.ui.components.MensajeError
 import com.ien.prestamoscomputadoras.ui.components.AppHeader
 import com.ien.prestamoscomputadoras.ui.theme.IenCream
 import com.ien.prestamoscomputadoras.ui.theme.IenGreyText
@@ -181,7 +182,7 @@ private fun RegisterContent(
                 )
 
                 RegisterField(
-                    label = "Nombre de usuario",
+                    label = "Nombre de usuario (para mostrar)",
                     value = uiState.nombreUsuario,
                     onValueChange = onNombreUsuarioChange,
                     placeholder = "ej: Jperez",
@@ -237,6 +238,11 @@ private fun RegisterContent(
                 )
 
                 Spacer(Modifier.height(20.dp))
+
+                uiState.errorGeneral?.let { error ->
+                    MensajeError(texto = error)
+                    Spacer(Modifier.height(12.dp))
+                }
 
                 Button(
                     onClick = onCrearCuentaClick,
@@ -300,7 +306,7 @@ private fun RegisterField(
             modifier = Modifier.padding(bottom = 6.dp),
         )
 
-        OutlinedTextField(
+        CampoTexto(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth(),
@@ -320,7 +326,7 @@ private fun RegisterField(
             } else {
                 null
             },
-            placeholder = { Text(placeholder) },
+            placeholder = placeholder,
             visualTransformation = when {
                 !esPassword -> VisualTransformation.None
                 mostrarPassword -> VisualTransformation.None
@@ -328,8 +334,7 @@ private fun RegisterField(
             },
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
             isError = error != null,
-            shape = RoundedCornerShape(12.dp),
-            colors = ienFieldColors(),
+            fondo = FondoCampo.BLANCO,
         )
 
         if (error != null) {
@@ -465,19 +470,6 @@ private fun SuccessOverlay(onAceptar: () -> Unit) {
         }
     }
 }
-
-@Composable
-private fun ienFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = IenPurple,
-    unfocusedBorderColor = IenPurple.copy(alpha = 0.35f),
-    focusedLeadingIconColor = IenPurple,
-    unfocusedLeadingIconColor = IenPurple.copy(alpha = 0.6f),
-    focusedTrailingIconColor = IenPurple,
-    unfocusedTrailingIconColor = IenPurple.copy(alpha = 0.6f),
-    cursorColor = IenPurple,
-    focusedContainerColor = Color.White,
-    unfocusedContainerColor = Color.White,
-)
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable

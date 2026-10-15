@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Para hablar con Supabase (la base de datos está en la nube). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Para escanear el QR de las computadoras en "Registrar Devolución". -->
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- required="false": la app se puede instalar igual en equipos sin cámara. -->

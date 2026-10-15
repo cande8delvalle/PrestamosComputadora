@@ -1,10 +1,13 @@
 package com.ien.prestamoscomputadoras.viewmodel
 
-import com.ien.prestamoscomputadoras.data.entity.Alumno
-import com.ien.prestamoscomputadoras.data.entity.Computadora
-import com.ien.prestamoscomputadoras.data.entity.Prestamo
-import com.ien.prestamoscomputadoras.data.repository.PrestamoRepository
+import com.ien.prestamoscomputadoras.data.model.Alumno
+import com.ien.prestamoscomputadoras.data.model.Computadora
+import com.ien.prestamoscomputadoras.data.model.NuevoPrestamo
+import com.ien.prestamoscomputadoras.data.model.Prestamo
+import com.ien.prestamoscomputadoras.data.remote.ErrorDatos
+import com.ien.prestamoscomputadoras.data.remote.MENSAJE_SIN_CONEXION
 import com.ien.prestamoscomputadoras.util.SesionActual
+import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -23,14 +26,9 @@ class RegistrarPrestamoViewModelTest {
     private val pc07 = Computadora(idComputadora = 7, codigo = "PC-07")
     private val pc12 = Computadora(idComputadora = 12, codigo = "PC-12")
 
-    private val alumnoDao = FakeAlumnoDao(mutableListOf(maria))
-    private val prestamoYComputadoraDao = FakePrestamoYComputadoraDao(listOf(pc07, pc12))
-    private var reloj = 1_000L
+    private val repo = FakePrestamos(computadoras = listOf(pc07, pc12), alumnos = listOf(maria))
 
-    private fun nuevoVm() = RegistrarPrestamoViewModel(
-        PrestamoRepository(prestamoYComputadoraDao, prestamoYComputadoraDao, alumnoDao),
-        ahora = { reloj },
-    )
+    private fun nuevoVm() = RegistrarPrestamoViewModel(repo)
 
     @Before
     fun setUp() {
@@ -51,15 +49,15 @@ class RegistrarPrestamoViewModelTest {
     }
 
     @Test
-    fun laFechaDelPrestamoEsLaDelMomentoDeGuardar_noLaDeAbrirLaPantalla() {
+    fun laFechaDelPrestamoLaPoneElServidor() {
         val vm = nuevoVm()
-        reloj = 9_000L
+        repo.ahoraServidor = fechaAr(9, 30, 15)
         vm.apply {
             onAlumnoSeleccionado(maria)
             onComputadoraSeleccionada(pc07)
             onRegistrarClick()
         }
-        assertEquals(9_000L, prestamoYComputadoraDao.prestamos.single().fechaPrestamo)
+        assertEquals(fechaAr(9, 30, 15), repo.prestamos.single().fechaPrestamo)
     }
 
     @Test
@@ -69,7 +67,7 @@ class RegistrarPrestamoViewModelTest {
 
         assertEquals(ERROR_SELECCIONAR_ALUMNO, vm.uiState.errorAlumno)
         assertEquals(ERROR_SELECCIONAR_COMPUTADORA, vm.uiState.errorComputadora)
-        assertTrue(prestamoYComputadoraDao.prestamos.isEmpty())
+        assertTrue(repo.prestamos.isEmpty())
     }
 
     @Test
@@ -82,7 +80,7 @@ class RegistrarPrestamoViewModelTest {
         }
 
         assertEquals(ERROR_SIN_SESION, vm.uiState.errorGeneral)
-        assertTrue(prestamoYComputadoraDao.prestamos.isEmpty())
+        assertTrue(repo.prestamos.isEmpty())
     }
 
     @Test
@@ -94,12 +92,11 @@ class RegistrarPrestamoViewModelTest {
             onRegistrarClick()
         }
 
-        val p = prestamoYComputadoraDao.prestamos.single()
+        val p = repo.prestamos.single()
         assertEquals(1L, p.idAlumno)
         assertEquals(7L, p.idComputadora)
         assertEquals(5L, p.idUsuarioPrestamo)
         assertNull(p.idUsuarioDevolucion)
-        assertEquals(1_000L, p.fechaPrestamo)
         assertNull(p.fechaDevolucion)
         assertEquals(Prestamo.ESTADO_ACTIVO, p.estado)
         assertEquals("Rayón en la tapa", p.observacionesIniciales)
@@ -115,7 +112,44 @@ class RegistrarPrestamoViewModelTest {
             onObservacionesChange("   ")
             onRegistrarClick()
         }
-        assertNull(prestamoYComputadoraDao.prestamos.single().observacionesIniciales)
+        assertNull(repo.prestamos.single().observacionesIniciales)
+    }
+
+    @Test
+    fun computadoraPrestadaDesdeOtroCelular_mensajeAmigableYSeRecarganLasListas() = runTest {
+        val vm = nuevoVm().apply {
+            onAlumnoSeleccionado(maria)
+            onComputadoraSeleccionada(pc07)
+        }
+        // Mientras tanto, otro celular presta la PC-07.
+        repo.insertar(NuevoPrestamo(idAlumno = 1, idComputadora = 7, idUsuarioPrestamo = 9))
+
+        vm.onRegistrarClick()
+
+        assertEquals(avisoComputadoraYaPrestada("PC-07"), vm.uiState.aviso)
+        assertEquals("Esa computadora ya está prestada", vm.uiState.aviso?.titulo)
+        assertNull(vm.uiState.computadoraSeleccionada)
+        assertEquals(listOf(pc12), vm.uiState.computadorasDisponibles)
+        assertFalse(vm.uiState.mostrarModalExito)
+        assertEquals(1, repo.prestamos.size)
+
+        vm.onAvisoAceptado()
+        assertNull(vm.uiState.aviso)
+    }
+
+    @Test
+    fun sinInternetAlCargar_muestraErrorYNoDiceQueNoHayComputadoras() {
+        repo.falla = ErrorDatos.SinConexion()
+        val vm = nuevoVm()
+
+        assertEquals(MENSAJE_SIN_CONEXION, vm.uiState.errorGeneral)
+        assertTrue(vm.uiState.errorListas)
+        assertFalse(vm.uiState.sinComputadorasDisponibles)
+
+        repo.falla = null
+        vm.cargarListas()
+        assertNull(vm.uiState.errorGeneral)
+        assertEquals(listOf(pc07, pc12), vm.uiState.computadorasDisponibles)
     }
 
     @Test
@@ -138,13 +172,7 @@ class RegistrarPrestamoViewModelTest {
 
     @Test
     fun sinComputadorasDisponibles_noRegistra() {
-        val vm = RegistrarPrestamoViewModel(
-            PrestamoRepository(
-                FakePrestamoYComputadoraDao(emptyList()),
-                FakePrestamoYComputadoraDao(emptyList()),
-                alumnoDao,
-            ),
-        )
+        val vm = RegistrarPrestamoViewModel(FakePrestamos(alumnos = listOf(maria)))
         assertTrue(vm.uiState.sinComputadorasDisponibles)
         vm.onAlumnoSeleccionado(maria)
         vm.onRegistrarClick()

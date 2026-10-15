@@ -1,13 +1,13 @@
 package com.ien.prestamoscomputadoras.util
 
-import com.ien.prestamoscomputadoras.data.entity.EstadoComputadora
-import com.ien.prestamoscomputadoras.data.entity.Prestamo
+import com.ien.prestamoscomputadoras.data.model.Prestamo
+import com.ien.prestamoscomputadoras.data.model.PrestamoHistorial
 
 /**
  * `true` si la tarjeta del préstamo debe mostrar el chip "Observación al entregar": el préstamo
- * tiene [Prestamo.observacionesIniciales] cargadas (no vacías), esté activo o ya devuelto.
+ * tiene observaciones iniciales cargadas (no vacías), esté activo o ya devuelto.
  */
-fun tieneObservacionAlEntregar(prestamo: Prestamo): Boolean =
+fun tieneObservacionAlEntregar(prestamo: PrestamoHistorial): Boolean =
     !prestamo.observacionesIniciales.isNullOrBlank()
 
 /**
@@ -15,14 +15,13 @@ fun tieneObservacionAlEntregar(prestamo: Prestamo): Boolean =
  * ya fue devuelto y su revisión marcó algún problema (no enciende, pantalla con fallas, sin
  * cargador u observaciones de devolución).
  *
- * Un préstamo activo todavía no tiene [estadoDevolucion] (`null`), así que nunca lo dispara.
+ * Un préstamo activo todavía no tiene revisión (sus campos son `null`), así que nunca lo dispara.
  */
-fun tieneDanioEnDevolucion(prestamo: Prestamo, estadoDevolucion: EstadoComputadora?): Boolean =
+fun tieneDanioEnDevolucion(prestamo: PrestamoHistorial): Boolean =
     prestamo.estado == Prestamo.ESTADO_DEVUELTO &&
-        estadoDevolucion != null &&
         (
-            !estadoDevolucion.enciende ||
-                !estadoDevolucion.pantallaOk ||
-                !estadoDevolucion.cargador ||
-                !estadoDevolucion.observaciones.isNullOrBlank()
+            prestamo.enciende == false ||
+                prestamo.pantallaOk == false ||
+                prestamo.cargador == false ||
+                !prestamo.observacionesDevolucion.isNullOrBlank()
             )

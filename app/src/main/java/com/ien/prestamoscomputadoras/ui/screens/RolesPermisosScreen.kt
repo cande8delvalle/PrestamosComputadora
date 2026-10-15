@@ -42,6 +42,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ien.prestamoscomputadoras.ui.components.MensajeError
 import com.ien.prestamoscomputadoras.data.Permiso
 import com.ien.prestamoscomputadoras.ui.components.BackHeader
 import com.ien.prestamoscomputadoras.ui.theme.IenCream
@@ -74,6 +75,7 @@ fun RolesPermisosScreen(
         uiState = viewModel.uiState,
         onTabSeleccionado = viewModel::onTabSeleccionado,
         onPermisoClick = viewModel::onPermisoClick,
+        onReintentar = viewModel::cargar,
         onVolverClick = onVolverClick,
         modifier = modifier,
     )
@@ -84,6 +86,7 @@ private fun RolesPermisosContent(
     uiState: RolesPermisosUiState,
     onTabSeleccionado: (RolTab) -> Unit,
     onPermisoClick: (Permiso) -> Unit,
+    onReintentar: () -> Unit = {},
     onVolverClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -130,6 +133,14 @@ private fun RolesPermisosContent(
                 }
 
                 AyudaTab(uiState.tab)
+
+                uiState.error?.let { error ->
+                    MensajeError(
+                        texto = error,
+                        onReintentar = onReintentar,
+                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
+                    )
+                }
 
                 LazyColumn(
                     modifier = Modifier

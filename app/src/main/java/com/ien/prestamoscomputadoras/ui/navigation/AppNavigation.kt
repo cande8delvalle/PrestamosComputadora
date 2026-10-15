@@ -1,6 +1,12 @@
 package com.ien.prestamoscomputadoras.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -26,6 +32,9 @@ import com.ien.prestamoscomputadoras.viewmodel.RegistrarComputadoraViewModel
 import com.ien.prestamoscomputadoras.viewmodel.RegistrarDevolucionViewModel
 import com.ien.prestamoscomputadoras.viewmodel.RegistrarPrestamoViewModel
 import com.ien.prestamoscomputadoras.viewmodel.RolesPermisosViewModel
+import com.ien.prestamoscomputadoras.util.SesionActual
+import com.ien.prestamoscomputadoras.viewmodel.DestinoInicial
+import com.ien.prestamoscomputadoras.viewmodel.SplashViewModel
 
 /** Rutas de la app. */
 sealed class Screen(val route: String) {
@@ -53,17 +62,41 @@ sealed class Screen(val route: String) {
 fun AppNavigation() {
     val navController = rememberNavController()
 
+    // Si una consulta confirmó que la sesión venció (ni refrescando el token se pudo), se lleva
+    // al login con el aviso. En las pantallas sin sesión (Splash, Bienvenida, Login, Registro)
+    // no hace falta: se descarta el aviso.
+    val sesionVencida by SesionActual.sesionVencida.collectAsState()
+    LaunchedEffect(sesionVencida) {
+        if (!sesionVencida) return@LaunchedEffect
+        val rutasSinSesion = setOf(Screen.Splash.route, Screen.Welcome.route, Screen.Login.route, Screen.Register.route)
+        if (navController.currentDestination?.route in rutasSinSesion) {
+            SesionActual.consumirAvisoSesionVencida()
+            return@LaunchedEffect
+        }
+        SesionActual.usuarioId = null
+        SesionActual.nombreUsuario = null
+        navController.navigate(Screen.Login.route) {
+            popUpTo(navController.graph.id) { inclusive = true }
+        }
+    }
+
     NavHost(navController = navController, startDestination = Screen.Splash.route) {
 
         composable(Screen.Splash.route) {
-            SplashScreen(
-                // Splash sale de la pila: "atrás" desde Welcome cierra la app.
-                onSplashFinished = {
-                    navController.navigate(Screen.Welcome.route) {
-                        popUpTo(Screen.Splash.route) { inclusive = true }
-                    }
-                },
-            )
+            val splashViewModel: SplashViewModel = viewModel(factory = SplashViewModel.Factory)
+            var animacionTerminada by remember { mutableStateOf(false) }
+            SplashScreen(onSplashFinished = { animacionTerminada = true })
+
+            // Se navega cuando terminaron las dos cosas: la animación y la verificación de la
+            // sesión guardada. Splash sale de la pila: "atrás" desde el destino cierra la app.
+            val destino = splashViewModel.destino
+            LaunchedEffect(animacionTerminada, destino) {
+                if (!animacionTerminada || destino == null) return@LaunchedEffect
+                val ruta = if (destino == DestinoInicial.HOME) Screen.Home.route else Screen.Welcome.route
+                navController.navigate(ruta) {
+                    popUpTo(Screen.Splash.route) { inclusive = true }
+                }
+            }
         }
 
         composable(Screen.Welcome.route) {

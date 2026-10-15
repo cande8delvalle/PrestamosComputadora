@@ -1,43 +1,108 @@
 package com.ien.prestamoscomputadoras.data.repository
 
-import com.ien.prestamoscomputadoras.data.dao.UsuarioDao
-import com.ien.prestamoscomputadoras.data.entity.Usuario
-import com.ien.prestamoscomputadoras.data.entity.Rol
-import com.ien.prestamoscomputadoras.util.hashPassword
+import com.ien.prestamoscomputadoras.data.model.Perfil
+import com.ien.prestamoscomputadoras.data.remote.ErrorDatos
+import com.ien.prestamoscomputadoras.data.remote.SupabaseProvider
+import com.ien.prestamoscomputadoras.data.remote.llamarSupabase
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.exception.AuthRestException
+import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.postgrest.from
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
-/** Alta y autenticación de usuarios. */
-class UsuarioRepository(private val usuarioDao: UsuarioDao) {
+/** Nombre de la restricción única de `perfil.nombre_usuario` (la crea Postgres por defecto). */
+const val RESTRICCION_NOMBRE_USUARIO = "perfil_nombre_usuario_key"
+
+/** Datos del formulario de registro (la contraseña va aparte: nunca se guarda en un modelo). */
+data class DatosRegistro(
+    val nombre: String,
+    val apellido: String,
+    val nombreUsuario: String,
+    val dni: String,
+    val email: String,
+)
+
+/** Alta de cuentas, login y sesión. */
+interface UsuarioRepository {
 
     /**
-     * Da de alta la cuenta asignándole el rol; se ignora el [Usuario.idRol] recibido.
-     *
-     * Solo puede existir UN Admin en todo el sistema: si ya existe, la cuenta nueva es
-     * Personal Administrativo sin excepción. Solo cuando todavía no hay Admin (la primera
-     * cuenta de la app) se registra como Admin. Devuelve el id generado.
-     *
-     * Si aun así se intentara insertar un segundo Admin, la base lo rechaza (trigger
-     * `un_solo_admin_insert`) con `SQLiteConstraintException`.
+     * Crea la cuenta en Supabase Auth. El perfil lo crea un trigger de la base con los datos
+     * de [datos]: la primera cuenta queda Admin y las siguientes, Personal Administrativo.
+     * No deja la sesión iniciada: después del registro se va al login.
      */
-    suspend fun registrar(usuario: Usuario): Long {
-        val rol = if (usuarioDao.existeAdmin()) Rol.ID_PERSONAL else Rol.ID_ADMIN
-        return usuarioDao.insertar(usuario.copy(idRol = rol))
+    suspend fun registrar(datos: DatosRegistro, contrasena: String): Result<Unit>
+
+    /** Inicia sesión con email y contraseña y devuelve el perfil del usuario. */
+    suspend fun iniciarSesion(email: String, contrasena: String): Result<Perfil>
+
+    /**
+     * Si quedó guardada una sesión de antes (la app se cerró sin cerrar sesión), devuelve su
+     * perfil; `null` si no hay sesión guardada.
+     */
+    suspend fun restaurarSesion(): Result<Perfil?>
+
+    suspend fun cerrarSesion(): Result<Unit>
+}
+
+class SupabaseUsuarioRepository(
+    private val supabase: SupabaseClient = SupabaseProvider.client,
+) : UsuarioRepository {
+
+    override suspend fun registrar(datos: DatosRegistro, contrasena: String): Result<Unit> =
+        llamarSupabase {
+            try {
+                supabase.auth.signUpWith(Email) {
+                    email = datos.email
+                    password = contrasena
+                    // Metadatos que lee el trigger handle_new_user para crear el perfil.
+                    data = buildJsonObject {
+                        put("nombre", datos.nombre)
+                        put("apellido", datos.apellido)
+                        put("nombre_usuario", datos.nombreUsuario)
+                        put("dni", datos.dni)
+                    }
+                }
+            } catch (e: AuthRestException) {
+                // Si el trigger no pudo crear el perfil, Supabase responde "Database error
+                // saving new user". Con el email ya validado por Auth, la única restricción
+                // única que puede fallar en perfil es nombre_usuario.
+                if (e.message.orEmpty().contains("Database error saving new user", ignoreCase = true)) {
+                    throw ErrorDatos.Duplicado(RESTRICCION_NOMBRE_USUARIO, e)
+                }
+                throw e
+            }
+            // Si el proyecto no pide confirmar el email, signUp ya deja la sesión abierta:
+            // se cierra para seguir el flujo de siempre (registro -> login).
+            if (supabase.auth.currentSessionOrNull() != null) supabase.auth.signOut()
+        }
+
+    override suspend fun iniciarSesion(email: String, contrasena: String): Result<Perfil> =
+        llamarSupabase {
+            supabase.auth.signInWith(Email) {
+                this.email = email
+                password = contrasena
+            }
+            perfilDeLaSesion() ?: run {
+                supabase.auth.signOut()
+                throw ErrorDatos.Otro(mensaje = "Tu cuenta no tiene un perfil cargado. Avisale al Admin.")
+            }
+        }
+
+    override suspend fun restaurarSesion(): Result<Perfil?> = llamarSupabase {
+        // Espera a que Auth termine de leer la sesión guardada en el teléfono.
+        supabase.auth.awaitInitialization()
+        if (supabase.auth.currentUserOrNull() == null) null else perfilDeLaSesion()
     }
 
-    suspend fun existeNombreUsuario(nombreUsuario: String): Boolean =
-        usuarioDao.existeNombreUsuario(nombreUsuario)
+    override suspend fun cerrarSesion(): Result<Unit> = llamarSupabase { supabase.auth.signOut() }
 
-    suspend fun existeEmail(email: String): Boolean = usuarioDao.existeEmail(email)
-
-    /**
-     * Devuelve la cuenta si [usuario] (nombre de usuario, o email si contiene "@")
-     * existe y [contrasena] coincide con su hash. `null` si alguna de las dos cosas falla.
-     */
-    suspend fun autenticar(usuario: String, contrasena: String): Usuario? {
-        val cuenta = if ("@" in usuario) {
-            usuarioDao.buscarPorEmail(usuario.lowercase())
-        } else {
-            usuarioDao.buscarPorNombreUsuario(usuario)
-        }
-        return cuenta?.takeIf { it.contrasenaHash == hashPassword(contrasena) }
+    /** Perfil del usuario logueado (fila de `perfil` con su auth_user_id). */
+    private suspend fun perfilDeLaSesion(): Perfil? {
+        val idAuth = supabase.auth.currentUserOrNull()?.id ?: return null
+        return supabase.from("perfil")
+            .select { filter { eq("auth_user_id", idAuth) } }
+            .decodeSingleOrNull<Perfil>()
     }
 }

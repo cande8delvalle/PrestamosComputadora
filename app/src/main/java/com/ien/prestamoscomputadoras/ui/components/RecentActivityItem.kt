@@ -87,11 +87,19 @@ fun RecentActivityItem(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(2.dp))
-                Text(
-                    text = "${actividad.codigoComputadora} · ${actividad.hora}hs",
-                    color = IenGreyText,
-                    fontSize = 13.sp,
-                )
+                // Código de PC + hora de la última actividad con su flecha (↑ entrega / ↓ devolución).
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${actividad.codigoComputadora} · ",
+                        color = IenGreyText,
+                        fontSize = 13.sp,
+                    )
+                    HoraConFlecha(
+                        hora = actividad.hora,
+                        evento = actividad.evento,
+                        color = IenGreyText,
+                    )
+                }
             }
 
             Spacer(Modifier.width(8.dp))

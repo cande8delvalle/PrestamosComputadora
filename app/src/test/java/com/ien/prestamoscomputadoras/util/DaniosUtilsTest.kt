@@ -1,78 +1,70 @@
 package com.ien.prestamoscomputadoras.util
 
-import com.ien.prestamoscomputadoras.data.entity.EstadoComputadora
-import com.ien.prestamoscomputadoras.data.entity.Prestamo
+import com.ien.prestamoscomputadoras.viewmodel.fechaAr
+import com.ien.prestamoscomputadoras.viewmodel.filaHistorial
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DaniosUtilsTest {
 
-    private fun prestamo(
-        observaciones: String? = null,
-        estado: String = Prestamo.ESTADO_ACTIVO,
-    ) = Prestamo(
-        idPrestamo = 1,
-        idAlumno = 1,
-        idComputadora = 1,
-        idUsuarioPrestamo = 1,
-        fechaPrestamo = 0,
-        estado = estado,
-        observacionesIniciales = observaciones,
-    )
+    private val prestado = fechaAr(9, 30, 9)
+    private val devueltoA = fechaAr(9, 30, 11)
 
-    private fun devuelto() = prestamo(estado = Prestamo.ESTADO_DEVUELTO)
+    private fun activo(observaciones: String? = null) =
+        filaHistorial(1, prestado, observacionesIniciales = observaciones)
 
-    private fun revision(
-        enciende: Boolean = true,
-        pantallaOk: Boolean = true,
-        cargador: Boolean = true,
-        observaciones: String? = null,
-    ) = EstadoComputadora(
-        idPrestamo = 1,
-        enciende = enciende,
-        pantallaOk = pantallaOk,
-        cargador = cargador,
-        observaciones = observaciones,
-        fechaRevision = 0,
+    private fun devuelto(
+        enciende: Boolean? = true,
+        pantallaOk: Boolean? = true,
+        cargador: Boolean? = true,
+        observacionesDevolucion: String? = null,
+        observacionesIniciales: String? = null,
+    ) = filaHistorial(
+        1, prestado, fechaDevolucion = devueltoA,
+        observacionesIniciales = observacionesIniciales,
+        enciende = enciende, pantallaOk = pantallaOk, cargador = cargador,
+        observacionesDevolucion = observacionesDevolucion,
     )
 
     @Test
     fun `observacion al entregar solo con texto`() {
-        assertFalse(tieneObservacionAlEntregar(prestamo()))
-        assertFalse(tieneObservacionAlEntregar(prestamo("   ")))
-        assertTrue(tieneObservacionAlEntregar(prestamo("Rayón en la tapa")))
+        assertFalse(tieneObservacionAlEntregar(activo()))
+        assertFalse(tieneObservacionAlEntregar(activo("   ")))
+        assertTrue(tieneObservacionAlEntregar(activo("Rayón en la tapa")))
     }
 
     @Test
     fun `observacion al entregar vale tambien para devueltos`() {
-        assertTrue(
-            tieneObservacionAlEntregar(prestamo("Rayón en la tapa", estado = Prestamo.ESTADO_DEVUELTO)),
-        )
+        assertTrue(tieneObservacionAlEntregar(devuelto(observacionesIniciales = "Rayón en la tapa")))
     }
 
     @Test
     fun `activo nunca tiene danio en la devolucion`() {
-        assertFalse(tieneDanioEnDevolucion(prestamo("Rayón en la tapa"), null))
+        assertFalse(tieneDanioEnDevolucion(activo("Rayón en la tapa")))
     }
 
     @Test
     fun `devuelto todo ok no tiene danio`() {
-        assertFalse(tieneDanioEnDevolucion(devuelto(), revision()))
-        assertFalse(tieneDanioEnDevolucion(devuelto(), revision(observaciones = "  ")))
+        assertFalse(tieneDanioEnDevolucion(devuelto()))
+        assertFalse(tieneDanioEnDevolucion(devuelto(observacionesDevolucion = "  ")))
+    }
+
+    @Test
+    fun `devuelto sin revision guardada no tiene danio`() {
+        assertFalse(tieneDanioEnDevolucion(devuelto(enciende = null, pantallaOk = null, cargador = null)))
     }
 
     @Test
     fun `devuelto con algun check en problema tiene danio`() {
-        assertTrue(tieneDanioEnDevolucion(devuelto(), revision(enciende = false)))
-        assertTrue(tieneDanioEnDevolucion(devuelto(), revision(pantallaOk = false)))
-        assertTrue(tieneDanioEnDevolucion(devuelto(), revision(cargador = false)))
-        assertTrue(tieneDanioEnDevolucion(devuelto(), revision(observaciones = "Tecla floja")))
+        assertTrue(tieneDanioEnDevolucion(devuelto(enciende = false)))
+        assertTrue(tieneDanioEnDevolucion(devuelto(pantallaOk = false)))
+        assertTrue(tieneDanioEnDevolucion(devuelto(cargador = false)))
+        assertTrue(tieneDanioEnDevolucion(devuelto(observacionesDevolucion = "Tecla floja")))
     }
 
     @Test
     fun `observaciones iniciales no disparan danio en la devolucion`() {
-        val p = prestamo("Rayón en la tapa", estado = Prestamo.ESTADO_DEVUELTO)
-        assertFalse(tieneDanioEnDevolucion(p, revision()))
+        assertFalse(tieneDanioEnDevolucion(devuelto(observacionesIniciales = "Rayón en la tapa")))
     }
 }

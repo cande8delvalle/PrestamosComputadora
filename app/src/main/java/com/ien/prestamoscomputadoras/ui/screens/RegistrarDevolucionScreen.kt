@@ -23,6 +23,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +42,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Laptop
@@ -53,7 +55,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -91,12 +92,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
+import com.ien.prestamoscomputadoras.ui.components.AvisoDialogo
+import com.ien.prestamoscomputadoras.ui.components.CampoTexto
 import com.ien.prestamoscomputadoras.data.repository.PrestamoEncontrado
 import com.ien.prestamoscomputadoras.ui.components.BackHeader
 import com.ien.prestamoscomputadoras.ui.components.ExitoOverlay
 import com.ien.prestamoscomputadoras.ui.components.FormErrorRed
+import com.ien.prestamoscomputadoras.ui.components.AmbarObservacion
 import com.ien.prestamoscomputadoras.ui.components.FormLabel
-import com.ien.prestamoscomputadoras.ui.components.lavenderFieldColors
 import com.ien.prestamoscomputadoras.ui.theme.IenCream
 import com.ien.prestamoscomputadoras.ui.theme.IenGreyText
 import com.ien.prestamoscomputadoras.ui.theme.IenLavender
@@ -108,6 +111,7 @@ import com.ien.prestamoscomputadoras.viewmodel.RegistrarDevolucionUiState
 import com.ien.prestamoscomputadoras.viewmodel.RegistrarDevolucionViewModel
 import com.ien.prestamoscomputadoras.viewmodel.formatearDni
 import com.ien.prestamoscomputadoras.viewmodel.formatearFechaHoraDevolucion
+import kotlin.time.Instant
 
 /** Fondo y tono del cartel de advertencia. */
 private val AdvertenciaFondo = Color(0xFFFFF3CC)
@@ -135,6 +139,12 @@ fun RegistrarDevolucionScreen(
 
     BackHandler(enabled = confirmando && !uiState.mostrarModalExito) {
         viewModel.volverAEscanear()
+    }
+
+    // Computadora sin préstamo / préstamo ya devuelto: diálogo centrado que solo se cierra con
+    // "Entendido". Al cerrarlo se vuelve al escáner (lo decide el ViewModel).
+    uiState.aviso?.let { aviso ->
+        AvisoDialogo(titulo = aviso.titulo, mensaje = aviso.mensaje, onAceptar = viewModel::onAvisoAceptado)
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -531,6 +541,12 @@ private fun ConfirmacionDevolucion(
 
             DatosPrestamo(prestamo)
 
+            // Si el equipo ya salió con un detalle, se recuerda antes de revisarlo.
+            prestamo.observacionesIniciales?.let { observacion ->
+                Spacer(Modifier.height(14.dp))
+                ObservacionDeLaEntrega(observacion)
+            }
+
             Spacer(Modifier.height(14.dp))
 
             Row(
@@ -566,15 +582,13 @@ private fun ConfirmacionDevolucion(
             Spacer(Modifier.height(20.dp))
 
             FormLabel("OBSERVACIONES (OPCIONAL)")
-            OutlinedTextField(
+            CampoTexto(
                 value = uiState.observaciones,
                 onValueChange = onObservacionesChange,
                 enabled = !uiState.isLoading,
                 minLines = 3,
-                placeholder = { Text("Detallar daños, faltantes u observaciones relevantes...") },
+                placeholder = "Detallar daños, faltantes u observaciones relevantes...",
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = lavenderFieldColors(),
             )
 
             if (uiState.errorConfirmacion != null) {
@@ -695,6 +709,43 @@ private fun ItemChecklist(
     }
 }
 
+/**
+ * Tarjeta destacada (ámbar, ícono de información) con las observaciones que se cargaron al
+ * entregar la computadora: así quien la recibe compara el estado actual con el de la salida.
+ */
+@Composable
+private fun ObservacionDeLaEntrega(texto: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(AmbarObservacion.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+            .border(1.5.dp, AmbarObservacion, RoundedCornerShape(12.dp))
+            .padding(14.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Info,
+            contentDescription = null,
+            tint = AmbarObservacion,
+            modifier = Modifier.size(22.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text(
+                text = "Se entregó con esta observación:",
+                color = AmbarObservacion,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = texto,
+                color = Color(0xFF4A3000),
+                fontSize = 14.sp,
+            )
+        }
+    }
+}
+
 @Composable
 private fun BotonAmarillo(texto: String, onClick: () -> Unit, cargando: Boolean = false) {
     Button(
@@ -731,7 +782,8 @@ private fun ConfirmacionDevolucionPreview() {
         nombreAlumno = "María Gonzales",
         dniAlumno = "46111222",
         codigoComputadora = "PC-12",
-        fechaPrestamo = 1_782_320_400_000,
+        fechaPrestamo = Instant.fromEpochMilliseconds(1_782_320_400_000),
+        observacionesIniciales = "Rayón en la tapa y tecla F5 floja.",
     )
     PrestamosComputadorasTheme {
         ConfirmacionDevolucion(

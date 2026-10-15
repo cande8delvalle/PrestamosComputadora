@@ -2,21 +2,18 @@ package com.ien.prestamoscomputadoras.ui.components
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ien.prestamoscomputadoras.ui.theme.IenLavenderDark
 import com.ien.prestamoscomputadoras.ui.theme.IenPurple
 
 /*
  * Piezas del formulario "tarjeta lavanda" de las pantallas secundarias (mismo look que
- * Registrar Alumno): label violeta en mayúscula, input lavanda sin borde y error rojo debajo.
+ * Registrar Alumno): label violeta en mayúscula y error rojo debajo. El input es CampoTexto.
  */
 
 /** Rojo de los mensajes de error de los campos. */
@@ -46,19 +43,3 @@ fun FormError(error: String?) {
         )
     }
 }
-
-/** Colores del input: fondo lavanda oscuro, sin borde salvo al enfocar o con error. */
-@Composable
-fun lavenderFieldColors(): TextFieldColors = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = IenPurple,
-    unfocusedBorderColor = Color.Transparent,
-    disabledBorderColor = Color.Transparent,
-    errorBorderColor = FormErrorRed,
-    cursorColor = IenPurple,
-    focusedContainerColor = IenLavenderDark,
-    unfocusedContainerColor = IenLavenderDark,
-    disabledContainerColor = IenLavenderDark,
-    errorContainerColor = IenLavenderDark,
-    focusedTrailingIconColor = IenPurple,
-    unfocusedTrailingIconColor = IenPurple,
-)

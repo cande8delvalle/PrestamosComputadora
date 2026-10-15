@@ -32,13 +32,16 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ien.prestamoscomputadoras.data.Permiso
 import com.ien.prestamoscomputadoras.ui.components.DetallePrestamoSheet
+import com.ien.prestamoscomputadoras.ui.components.MensajeError
 import com.ien.prestamoscomputadoras.ui.components.QuickActionCard
 import com.ien.prestamoscomputadoras.ui.components.RecentActivityItem
 import com.ien.prestamoscomputadoras.ui.components.StatCard
@@ -79,8 +82,18 @@ fun HomeScreen(
     onLogoutClick: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Mientras Home se ve (STARTED) lee los datos y escucha los cambios en vivo (Realtime).
+    // Al abrir otra pantalla o pasar la app a segundo plano (STOPPED) se cierra la suscripción;
+    // al volver, se vuelve a leer todo (así aparece lo que se registró en otra pantalla).
+    LifecycleStartEffect(viewModel) {
+        viewModel.onPantallaVisible()
+        onStopOrDispose { viewModel.onPantallaOculta() }
+    }
+
     HomeContent(
         uiState = uiState,
+        onReintentar = viewModel::reintentar,
         onRegistrarAlumnoClick = onRegistrarAlumnoClick,
         onRegistrarComputadoraClick = onRegistrarComputadoraClick,
         onNuevoPrestamoClick = onNuevoPrestamoClick,
@@ -102,6 +115,7 @@ fun HomeScreen(
 private fun HomeContent(
     uiState: HomeUiState,
     onActividadClick: (ActividadReciente) -> Unit,
+    onReintentar: () -> Unit = {},
     onRegistrarAlumnoClick: () -> Unit,
     onRegistrarComputadoraClick: () -> Unit,
     onNuevoPrestamoClick: () -> Unit,
@@ -118,10 +132,10 @@ private fun HomeContent(
             .fillMaxSize()
             .background(IenCream),
     ) {
-        HomeHeader(onLogoutClick = onLogoutClick)
+        HomeHeader(saludo = uiState.saludo, onLogoutClick = onLogoutClick)
 
-        // Contenido scrolleable. weight(1f) ocupa todo el alto sobrante, así el footer
-        // (que está FUERA de este Column) queda siempre anclado abajo, haya poco o mucho contenido.
+        // Contenido scrolleable: ocupa todo el alto debajo del header. La versión va adentro,
+        // al final, para que nada quede fijo tapando las últimas tarjetas.
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -130,6 +144,11 @@ private fun HomeContent(
                 .padding(horizontal = 20.dp),
         ) {
             Spacer(Modifier.height(20.dp))
+
+            uiState.error?.let { error ->
+                MensajeError(texto = error, onReintentar = onReintentar)
+                Spacer(Modifier.height(12.dp))
+            }
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 StatCard(
@@ -228,27 +247,32 @@ private fun HomeContent(
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
-        }
+            Spacer(Modifier.height(28.dp))
 
-        // Footer sticky: fuera del scroll, siempre visible al pie.
-        Text(
-            text = "Versión 1.0 · IEN 2026",
-            color = IenGreyText,
-            fontSize = 12.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(IenCream)
-                .navigationBarsPadding()
-                .padding(vertical = 12.dp),
-        )
+            // Versión: último ítem del contenido que se desplaza (no fijo al pie), así no tapa
+            // nada y solo se ve al llegar al final.
+            Text(
+                text = "Versión 1.0 · IEN 2026",
+                color = IenGreyText,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            // Margen inferior + el alto de la barra de navegación del sistema: el final del
+            // contenido nunca queda debajo de los botones de Android.
+            Spacer(
+                Modifier
+                    .navigationBarsPadding()
+                    .height(16.dp),
+            )
+        }
     }
 }
 
 /** Header violeta simple: saludo a la izquierda y botón de cerrar sesión a la derecha. */
 @Composable
-private fun HomeHeader(onLogoutClick: () -> Unit) {
+private fun HomeHeader(saludo: String, onLogoutClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -258,10 +282,13 @@ private fun HomeHeader(onLogoutClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "Buen día!",
+            text = saludo,
             color = Color.White,
-            fontSize = 28.sp,
+            fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
+            // Un nombre de usuario largo se corta con "…" en vez de empujar el botón de salir.
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
         IconButton(onClick = onLogoutClick) {

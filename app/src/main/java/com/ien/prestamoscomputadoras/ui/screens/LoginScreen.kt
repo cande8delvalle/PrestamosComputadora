@@ -18,7 +18,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -26,15 +26,12 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalAutofillManager
 import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.semantics.semantics
@@ -47,12 +44,15 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ien.prestamoscomputadoras.ui.components.CampoTexto
+import com.ien.prestamoscomputadoras.ui.components.FondoCampo
 import com.ien.prestamoscomputadoras.ui.components.AppHeader
 import com.ien.prestamoscomputadoras.ui.theme.IenCream
 import com.ien.prestamoscomputadoras.ui.theme.IenGreyText
 import com.ien.prestamoscomputadoras.ui.theme.IenPurple
 import com.ien.prestamoscomputadoras.ui.theme.IenYellow
 import com.ien.prestamoscomputadoras.ui.theme.PrestamosComputadorasTheme
+import com.ien.prestamoscomputadoras.viewmodel.ERROR_LOGIN_EMAIL_FORMATO
 import com.ien.prestamoscomputadoras.viewmodel.LoginUiState
 import com.ien.prestamoscomputadoras.viewmodel.LoginViewModel
 
@@ -76,7 +76,7 @@ fun LoginScreen(
 
     LoginContent(
         uiState = uiState,
-        onUsuarioChange = viewModel::onUsuarioChange,
+        onEmailChange = viewModel::onEmailChange,
         onContrasenaChange = viewModel::onContrasenaChange,
         onToggleMostrarContrasena = viewModel::onToggleMostrarContrasena,
         onLoginClick = {
@@ -95,7 +95,7 @@ fun LoginScreen(
 @Composable
 private fun LoginContent(
     uiState: LoginUiState,
-    onUsuarioChange: (String) -> Unit,
+    onEmailChange: (String) -> Unit,
     onContrasenaChange: (String) -> Unit,
     onToggleMostrarContrasena: () -> Unit,
     onLoginClick: () -> Unit,
@@ -137,30 +137,30 @@ private fun LoginContent(
 
             Spacer(Modifier.height(28.dp))
 
-            FieldLabel("Usuario")
-            // ContentType le dice al framework de Autofill qué es cada campo. Usuario + Password
-            // en la misma pantalla es lo que lo reconoce como formulario de login.
-            OutlinedTextField(
-                value = uiState.usuario,
-                onValueChange = onUsuarioChange,
+            FieldLabel("Correo electrónico")
+            // ContentType le dice al framework de Autofill qué es cada campo. Username + Password
+            // en la misma pantalla es lo que lo reconoce como formulario de login (el "username"
+            // de esta app es el correo), así ofrece guardar y completar las credenciales.
+            CampoTexto(
+                value = uiState.email,
+                onValueChange = onEmailChange,
                 modifier = Modifier
                     .fillMaxWidth()
                     .semantics { contentType = ContentType.Username },
                 singleLine = true,
                 leadingIcon = {
-                    Icon(Icons.Filled.Person, contentDescription = null)
+                    Icon(Icons.Filled.Email, contentDescription = null)
                 },
-                placeholder = { Text("Ingresá tu usuario") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                placeholder = "Ingresá tu correo electrónico",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 isError = uiState.error != null,
-                shape = RoundedCornerShape(12.dp),
-                colors = ienFieldColors(),
+                fondo = FondoCampo.BLANCO,
             )
 
             Spacer(Modifier.height(16.dp))
 
             FieldLabel("Contraseña")
-            OutlinedTextField(
+            CampoTexto(
                 value = uiState.contrasena,
                 onValueChange = onContrasenaChange,
                 modifier = Modifier
@@ -170,7 +170,7 @@ private fun LoginContent(
                 leadingIcon = {
                     Icon(Icons.Filled.Lock, contentDescription = null)
                 },
-                placeholder = { Text("********") },
+                placeholder = "********",
                 trailingIcon = {
                     val icono =
                         if (uiState.mostrarContrasena) Icons.Filled.Visibility
@@ -187,8 +187,7 @@ private fun LoginContent(
                     else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 isError = uiState.error != null,
-                shape = RoundedCornerShape(12.dp),
-                colors = ienFieldColors(),
+                fondo = FondoCampo.BLANCO,
             )
 
             if (uiState.error != null) {
@@ -280,26 +279,13 @@ private fun LoginFooter() {
     )
 }
 
-@Composable
-private fun ienFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = IenPurple,
-    unfocusedBorderColor = IenPurple.copy(alpha = 0.35f),
-    focusedLeadingIconColor = IenPurple,
-    unfocusedLeadingIconColor = IenPurple.copy(alpha = 0.6f),
-    focusedTrailingIconColor = IenPurple,
-    unfocusedTrailingIconColor = IenPurple.copy(alpha = 0.6f),
-    cursorColor = IenPurple,
-    focusedContainerColor = Color.White,
-    unfocusedContainerColor = Color.White,
-)
-
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 private fun LoginScreenPreview() {
     PrestamosComputadorasTheme {
         LoginContent(
             uiState = LoginUiState(),
-            onUsuarioChange = {},
+            onEmailChange = {},
             onContrasenaChange = {},
             onToggleMostrarContrasena = {},
             onLoginClick = {},
@@ -314,11 +300,11 @@ private fun LoginScreenErrorPreview() {
     PrestamosComputadorasTheme {
         LoginContent(
             uiState = LoginUiState(
-                usuario = "",
+                email = "",
                 contrasena = "123",
-                error = "Completá el usuario y la contraseña.",
+                error = ERROR_LOGIN_EMAIL_FORMATO,
             ),
-            onUsuarioChange = {},
+            onEmailChange = {},
             onContrasenaChange = {},
             onToggleMostrarContrasena = {},
             onLoginClick = {},

@@ -1,6 +1,5 @@
 package com.ien.prestamoscomputadoras.viewmodel
 
-import android.database.sqlite.SQLiteConstraintException
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -9,9 +8,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.ien.prestamoscomputadoras.data.AppDatabase
-import com.ien.prestamoscomputadoras.data.entity.Computadora
+import com.ien.prestamoscomputadoras.data.model.Computadora
+import com.ien.prestamoscomputadoras.data.remote.ErrorDatos
 import com.ien.prestamoscomputadoras.data.repository.ComputadoraRepository
+import com.ien.prestamoscomputadoras.data.repository.SupabaseComputadoraRepository
 import kotlinx.coroutines.launch
 
 const val ERROR_CODIGO_FORMATO = "El código debe tener el formato LETRAS-NÚMERO, ej: PC-11"
@@ -37,6 +37,8 @@ data class RegistrarComputadoraUiState(
     val isLoading: Boolean = false,
     /** Cuando es `true`, la pantalla muestra el modal de "Computadora Registrada Correctamente". */
     val mostrarModalExito: Boolean = false,
+    /** Error que no es del campo código (sin internet, sin permiso de Admin). */
+    val errorGeneral: String? = null,
 )
 
 /** ViewModel de [com.ien.prestamoscomputadoras.ui.screens.RegistrarComputadoraScreen]. */
@@ -79,31 +81,38 @@ class RegistrarComputadoraViewModel(
             return
         }
 
-        uiState = s.copy(isLoading = true)
+        uiState = s.copy(isLoading = true, errorGeneral = null)
         viewModelScope.launch {
-            try {
-                if (computadoraRepository.buscarPorCodigo(codigo) != null) {
-                    uiState = uiState.copy(errorCodigo = ERROR_CODIGO_DUPLICADO)
-                    return@launch
-                }
-                computadoraRepository.buscarPorId(numero)?.let { existente ->
-                    uiState = uiState.copy(errorCodigo = errorNumeroEnUso(numero, existente.codigo))
-                    return@launch
-                }
-                computadoraRepository.insertar(
-                    Computadora(
-                        idComputadora = numero,
-                        codigo = codigo,
-                        modelo = s.modelo.trim().ifEmpty { null },
-                    ),
-                )
-                uiState = uiState.copy(mostrarModalExito = true)
-            } catch (e: SQLiteConstraintException) {
-                // Otra alta con el mismo código/id se coló entre la búsqueda y el insert.
-                uiState = uiState.copy(errorCodigo = ERROR_CODIGO_DUPLICADO)
-            } finally {
-                uiState = uiState.copy(isLoading = false)
+            fun fallo(e: Throwable) {
+                uiState = uiState.copy(isLoading = false, errorGeneral = e.message)
             }
+            val mismoCodigo = computadoraRepository.buscarPorCodigo(codigo).getOrElse { fallo(it); return@launch }
+            if (mismoCodigo != null) {
+                uiState = uiState.copy(isLoading = false, errorCodigo = ERROR_CODIGO_DUPLICADO)
+                return@launch
+            }
+            val mismoNumero = computadoraRepository.buscarPorId(numero).getOrElse { fallo(it); return@launch }
+            if (mismoNumero != null) {
+                uiState = uiState.copy(isLoading = false, errorCodigo = errorNumeroEnUso(numero, mismoNumero.codigo))
+                return@launch
+            }
+            computadoraRepository.insertar(
+                Computadora(
+                    idComputadora = numero,
+                    codigo = codigo,
+                    modelo = s.modelo.trim().ifEmpty { null },
+                ),
+            )
+                .onSuccess { uiState = uiState.copy(isLoading = false, mostrarModalExito = true) }
+                .onFailure { e ->
+                    if (e is ErrorDatos.Duplicado) {
+                        // Otra alta con el mismo código/id se coló entre la búsqueda y el insert.
+                        uiState = uiState.copy(isLoading = false, errorCodigo = ERROR_CODIGO_DUPLICADO)
+                    } else {
+                        // Incluye ErrorDatos.SinPermiso: la base (RLS) solo deja escribir al Admin.
+                        fallo(e)
+                    }
+                }
         }
     }
 
@@ -118,14 +127,9 @@ class RegistrarComputadoraViewModel(
     }
 
     companion object {
-        /** Crea el ViewModel con su repositorio (Room) a partir del Application. */
+        /** Crea el ViewModel con su repositorio (Supabase). */
         val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                val app = checkNotNull(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
-                RegistrarComputadoraViewModel(
-                    ComputadoraRepository(AppDatabase.getInstance(app).computadoraDao()),
-                )
-            }
+            initializer { RegistrarComputadoraViewModel(SupabaseComputadoraRepository()) }
         }
     }
 }
