@@ -46,12 +46,12 @@ class RolesPermisosViewModelTest {
     }
 
     @Test
-    fun tabPersonal_sinGestionDePermisos_yConLosIniciales() {
+    fun tabPersonal_sinPermisosExclusivosDelAdmin_yConLosIniciales() {
         val vm = nuevoVm()
         vm.onTabSeleccionado(RolTab.PERSONAL)
 
         val items = vm.uiState.items
-        assertEquals(Permiso.entries.filter { it != Permiso.GESTION_PERMISOS }, items.map { it.permiso })
+        assertEquals(Permiso.entries.filter { !it.soloAdmin }, items.map { it.permiso })
         assertTrue(items.all { it.editable })
         assertEquals(Permiso.inicialesPersonal, items.filter { it.habilitado }.map { it.permiso }.toSet())
     }

@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Laptop
+import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -47,6 +48,7 @@ import com.ien.prestamoscomputadoras.ui.components.AvisoDialogo
 import com.ien.prestamoscomputadoras.ui.components.CampoTexto
 import com.ien.prestamoscomputadoras.ui.components.MensajeError
 import com.ien.prestamoscomputadoras.data.model.Alumno
+import com.ien.prestamoscomputadoras.data.model.Aula
 import com.ien.prestamoscomputadoras.data.model.Computadora
 import com.ien.prestamoscomputadoras.ui.components.BackHeader
 import com.ien.prestamoscomputadoras.ui.components.ExitoOverlay
@@ -59,6 +61,7 @@ import com.ien.prestamoscomputadoras.ui.theme.IenPurple
 import com.ien.prestamoscomputadoras.ui.theme.IenYellow
 import com.ien.prestamoscomputadoras.ui.theme.PrestamosComputadorasTheme
 import com.ien.prestamoscomputadoras.viewmodel.ERROR_SELECCIONAR_ALUMNO
+import com.ien.prestamoscomputadoras.viewmodel.ERROR_SELECCIONAR_AULA
 import com.ien.prestamoscomputadoras.viewmodel.ERROR_SELECCIONAR_COMPUTADORA
 import com.ien.prestamoscomputadoras.viewmodel.RegistrarPrestamoUiState
 import com.ien.prestamoscomputadoras.viewmodel.RegistrarPrestamoViewModel
@@ -83,6 +86,7 @@ fun RegistrarPrestamoScreen(
         uiState = viewModel.uiState,
         onAlumnoSeleccionado = viewModel::onAlumnoSeleccionado,
         onComputadoraSeleccionada = viewModel::onComputadoraSeleccionada,
+        onAulaSeleccionada = viewModel::onAulaSeleccionada,
         onObservacionesChange = viewModel::onObservacionesChange,
         onRegistrarClick = viewModel::onRegistrarClick,
         onRealizarOtroClick = viewModel::onRealizarOtroClick,
@@ -108,6 +112,7 @@ private fun RegistrarPrestamoContent(
     onReintentarCarga: () -> Unit = {},
     onAlumnoSeleccionado: (Alumno) -> Unit,
     onComputadoraSeleccionada: (Computadora) -> Unit,
+    onAulaSeleccionada: (Aula) -> Unit,
     onObservacionesChange: (String) -> Unit,
     onRegistrarClick: () -> Unit,
     onRealizarOtroClick: () -> Unit,
@@ -116,7 +121,8 @@ private fun RegistrarPrestamoContent(
     modifier: Modifier = Modifier,
 ) {
     val botonHabilitado =
-        !uiState.isLoading && !uiState.cargandoListas && !uiState.sinComputadorasDisponibles
+        !uiState.isLoading && !uiState.cargandoListas &&
+            !uiState.sinComputadorasDisponibles && !uiState.sinAulas
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(
@@ -186,6 +192,26 @@ private fun RegistrarPrestamoContent(
                             }
                         }
                         FormError(uiState.errorComputadora)
+                    }
+
+                    Column {
+                        FormLabel("AULA")
+                        if (uiState.sinAulas) {
+                            MensajeListaVacia("No hay aulas registradas. Pedile al Admin que cargue una.")
+                        } else {
+                            Selector(
+                                opciones = uiState.aulas,
+                                seleccionado = uiState.aulaSeleccionada,
+                                textoSeleccionado = { it.nombre },
+                                placeholder = "Seleccioná un aula",
+                                error = uiState.errorAula,
+                                enabled = !uiState.isLoading,
+                                onSeleccionar = onAulaSeleccionada,
+                            ) { aula ->
+                                ItemSelector(icono = Icons.Filled.MeetingRoom, titulo = aula.nombre)
+                            }
+                        }
+                        FormError(uiState.errorAula)
                     }
 
                     Column {
@@ -340,6 +366,10 @@ private val alumnosDePrueba = listOf(
     Alumno(idAlumno = 1, nombre = "María", apellido = "Gonzales", dni = "46111222"),
     Alumno(idAlumno = 2, nombre = "Juan", apellido = "Pérez", dni = "45799888"),
 )
+private val aulasDePrueba = listOf(
+    Aula(idAula = 1, nombre = "Aula 1"),
+    Aula(idAula = 2, nombre = "Laboratorio"),
+)
 private val computadorasDePrueba = listOf(
     Computadora(idComputadora = 7, codigo = "PC-07"),
     Computadora(idComputadora = 12, codigo = "PC-12"),
@@ -353,11 +383,13 @@ private fun RegistrarPrestamoScreenPreview() {
             uiState = RegistrarPrestamoUiState(
                 alumnos = alumnosDePrueba,
                 computadorasDisponibles = computadorasDePrueba,
+                aulas = aulasDePrueba,
                 cargandoListas = false,
                 alumnoSeleccionado = alumnosDePrueba.first(),
             ),
             onAlumnoSeleccionado = {},
             onComputadoraSeleccionada = {},
+            onAulaSeleccionada = {},
             onObservacionesChange = {},
             onRegistrarClick = {},
             onRealizarOtroClick = {},
@@ -375,12 +407,15 @@ private fun RegistrarPrestamoErroresPreview() {
             uiState = RegistrarPrestamoUiState(
                 alumnos = alumnosDePrueba,
                 computadorasDisponibles = emptyList(),
+                aulas = aulasDePrueba,
                 cargandoListas = false,
                 errorAlumno = ERROR_SELECCIONAR_ALUMNO,
                 errorComputadora = ERROR_SELECCIONAR_COMPUTADORA,
+                errorAula = ERROR_SELECCIONAR_AULA,
             ),
             onAlumnoSeleccionado = {},
             onComputadoraSeleccionada = {},
+            onAulaSeleccionada = {},
             onObservacionesChange = {},
             onRegistrarClick = {},
             onRealizarOtroClick = {},
@@ -398,6 +433,7 @@ private fun RegistrarPrestamoModalPreview() {
             uiState = RegistrarPrestamoUiState(cargandoListas = false, mostrarModalExito = true),
             onAlumnoSeleccionado = {},
             onComputadoraSeleccionada = {},
+            onAulaSeleccionada = {},
             onObservacionesChange = {},
             onRegistrarClick = {},
             onRealizarOtroClick = {},

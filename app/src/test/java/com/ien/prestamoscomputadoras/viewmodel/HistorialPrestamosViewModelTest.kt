@@ -99,6 +99,22 @@ class HistorialPrestamosViewModelTest {
     }
 
     @Test
+    fun tarjeta_muestraElAulaYSinAulaSiEsNull() {
+        val repo = FakeHistorialRepository(
+            listOf(
+                filaHistorial(1, fechaAr(9, 30, 9), aulaNombre = "Laboratorio"),
+                filaHistorial(2, fechaAr(9, 30, 10), aulaNombre = null), // préstamo viejo
+                filaHistorial(3, fechaAr(9, 30, 11), aulaNombre = "   "),
+            ),
+        )
+        val tarjetas = nuevoVm(repo).uiState.tarjetas.associateBy { it.idPrestamo }
+
+        assertEquals("Laboratorio", tarjetas.getValue(1).nombreAula)
+        assertEquals("Sin aula", tarjetas.getValue(2).nombreAula)
+        assertEquals("Sin aula", tarjetas.getValue(3).nombreAula)
+    }
+
+    @Test
     fun ultimaActividad_activaMuestraEntrega_devueltaMuestraDevolucion() {
         val repo = FakeHistorialRepository(
             listOf(

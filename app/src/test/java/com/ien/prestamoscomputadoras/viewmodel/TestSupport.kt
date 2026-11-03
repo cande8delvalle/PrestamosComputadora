@@ -2,6 +2,7 @@ package com.ien.prestamoscomputadoras.viewmodel
 
 import com.ien.prestamoscomputadoras.data.Permiso
 import com.ien.prestamoscomputadoras.data.model.Alumno
+import com.ien.prestamoscomputadoras.data.model.Aula
 import com.ien.prestamoscomputadoras.data.model.Computadora
 import com.ien.prestamoscomputadoras.data.model.EstadoComputadora
 import com.ien.prestamoscomputadoras.data.model.NuevoPrestamo
@@ -11,15 +12,19 @@ import com.ien.prestamoscomputadoras.data.model.PrestamoHistorial
 import com.ien.prestamoscomputadoras.data.model.ResumenHoy
 import com.ien.prestamoscomputadoras.data.model.Rol
 import com.ien.prestamoscomputadoras.data.model.RolPermiso
+import com.ien.prestamoscomputadoras.data.model.TEXTO_SIN_AULA
 import com.ien.prestamoscomputadoras.data.remote.ErrorDatos
 import com.ien.prestamoscomputadoras.data.repository.AccesoUsuario
 import com.ien.prestamoscomputadoras.data.repository.AlumnoRepository
+import com.ien.prestamoscomputadoras.data.repository.AulaRepository
 import com.ien.prestamoscomputadoras.data.repository.BusquedaDevolucion
 import com.ien.prestamoscomputadoras.data.repository.ComputadoraRepository
 import com.ien.prestamoscomputadoras.data.repository.DatosRegistro
 import com.ien.prestamoscomputadoras.data.repository.DevolucionRepository
 import com.ien.prestamoscomputadoras.data.repository.HistorialRepository
 import com.ien.prestamoscomputadoras.data.repository.HomeRepository
+import com.ien.prestamoscomputadoras.data.repository.MENSAJE_AULA_CON_PRESTAMOS
+import com.ien.prestamoscomputadoras.data.repository.MENSAJE_AULA_DUPLICADA
 import com.ien.prestamoscomputadoras.data.repository.PermisosRepository
 import com.ien.prestamoscomputadoras.data.repository.PrestamoEncontrado
 import com.ien.prestamoscomputadoras.data.repository.PrestamoRepository
@@ -78,6 +83,7 @@ fun filaHistorial(
     pantallaOk: Boolean? = if (fechaDevolucion != null) true else null,
     cargador: Boolean? = if (fechaDevolucion != null) true else null,
     observacionesDevolucion: String? = null,
+    aulaNombre: String? = null,
 ) = PrestamoHistorial(
     idPrestamo = id,
     estado = if (fechaDevolucion != null) Prestamo.ESTADO_DEVUELTO else Prestamo.ESTADO_ACTIVO,
@@ -99,6 +105,7 @@ fun filaHistorial(
     pantallaOk = pantallaOk,
     cargador = cargador,
     observacionesDevolucion = observacionesDevolucion,
+    aulaNombre = aulaNombre,
 )
 
 /** Imita Supabase Auth + el trigger handle_new_user (la primera cuenta es Admin). */
@@ -164,6 +171,47 @@ class FakeAlumnoRepository(val alumnos: MutableList<Alumno> = mutableListOf()) :
     }
 }
 
+/**
+ * Aulas en memoria, con las mismas reglas que la base: nombre único sin distinguir mayúsculas
+ * (23505) y no se puede borrar un aula con préstamos (23503, ver [idsConPrestamos]).
+ */
+class FakeAulaRepository(aulasIniciales: List<Aula> = emptyList()) : AulaRepository {
+    val aulas = aulasIniciales.toMutableList()
+    /** Aulas que ya tuvieron préstamos. */
+    val idsConPrestamos = mutableSetOf<Long>()
+    /** Si no es `null`, todas las llamadas fallan con este error (p. ej. sin internet). */
+    var falla: ErrorDatos? = null
+    /** Si no es `null`, solo falla el insert (p. ej. SinPermiso de un no-Admin). */
+    var fallaAlInsertar: ErrorDatos? = null
+    var lecturas = 0
+
+    override suspend fun listar(): Result<List<Aula>> {
+        lecturas++
+        falla?.let { return Result.failure(it) }
+        return Result.success(aulas.sortedBy { it.nombre.lowercase() })
+    }
+
+    override suspend fun insertar(nombre: String): Result<Aula> {
+        falla?.let { return Result.failure(it) }
+        fallaAlInsertar?.let { return Result.failure(it) }
+        if (aulas.any { it.nombre.lowercase() == nombre.lowercase() }) {
+            return Result.failure(ErrorDatos.Duplicado("aula_nombre_unico", mensaje = MENSAJE_AULA_DUPLICADA))
+        }
+        val aula = Aula(idAula = (aulas.maxOfOrNull { it.idAula } ?: 0L) + 1, nombre = nombre)
+        aulas += aula
+        return Result.success(aula)
+    }
+
+    override suspend fun eliminar(idAula: Long): Result<Unit> {
+        falla?.let { return Result.failure(it) }
+        if (idAula in idsConPrestamos) {
+            return Result.failure(ErrorDatos.ReferenciaEnUso("prestamo_id_aula_fkey", mensaje = MENSAJE_AULA_CON_PRESTAMOS))
+        }
+        aulas.removeAll { it.idAula == idAula }
+        return Result.success(Unit)
+    }
+}
+
 class FakeComputadoraRepository(computadorasIniciales: List<Computadora> = emptyList()) : ComputadoraRepository {
     val computadoras = computadorasIniciales.toMutableList()
     /** Si no es `null`, solo falla el insert (p. ej. SinPermiso de un no-Admin). */
@@ -193,7 +241,10 @@ class FakePrestamos(
     var ahoraServidor: Instant = fechaAr(9, 30, 12),
     /** Perfil logueado (lo que usa el trigger como "quién recibió"). */
     var perfilLogueado: Long = 3,
+    /** Para resolver el nombre del aula al buscar un préstamo (como la vista historial_prestamos). */
+    aulas: List<Aula> = emptyList(),
 ) : PrestamoRepository, DevolucionRepository {
+    val aulas = aulas.toMutableList()
     val computadoras = computadoras.toMutableList()
     val alumnos = alumnos.toMutableList()
     val prestamos = mutableListOf<Prestamo>()
@@ -212,6 +263,7 @@ class FakePrestamos(
             idAlumno = prestamo.idAlumno,
             idComputadora = prestamo.idComputadora,
             idUsuarioPrestamo = prestamo.idUsuarioPrestamo,
+            idAula = prestamo.idAula,
             fechaPrestamo = ahoraServidor,
             estado = prestamo.estado,
             observacionesIniciales = prestamo.observacionesIniciales,
@@ -254,6 +306,7 @@ class FakePrestamos(
                 codigoComputadora = codigoComputadora,
                 fechaPrestamo = prestamo.fechaPrestamo,
                 observacionesIniciales = prestamo.observacionesIniciales?.trim()?.ifEmpty { null },
+                aula = aulas.firstOrNull { it.idAula == prestamo.idAula }?.nombre ?: TEXTO_SIN_AULA,
             )),
         )
     }

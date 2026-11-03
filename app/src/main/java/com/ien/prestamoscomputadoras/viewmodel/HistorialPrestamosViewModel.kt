@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.ien.prestamoscomputadoras.data.model.Prestamo
+import com.ien.prestamoscomputadoras.data.model.TEXTO_SIN_AULA
 import com.ien.prestamoscomputadoras.data.model.PrestamoHistorial
 import com.ien.prestamoscomputadoras.data.repository.HistorialRepository
 import com.ien.prestamoscomputadoras.data.repository.SupabaseHistorialRepository
@@ -81,6 +82,8 @@ data class TarjetaHistorial(
     val devueltoPor: String?,
     /** Epoch ms del préstamo, para aplicar el filtro. */
     val fechaPrestamoMs: Long,
+    /** Aula del préstamo, o [TEXTO_SIN_AULA] si es anterior a las aulas. */
+    val nombreAula: String = TEXTO_SIN_AULA,
 ) {
     /** Lo último que pasó con el préstamo: la devolución si ya se devolvió, si no la entrega. */
     val eventoUltimaActividad: EventoHora
@@ -225,5 +228,6 @@ internal fun PrestamoHistorial.aTarjeta(): TarjetaHistorial {
         prestadoPor = prestadoPor,
         devueltoPor = devueltoPor?.takeIf { devuelto }?.trim(),
         fechaPrestamoMs = fechaPrestamo.toEpochMilliseconds(),
+        nombreAula = aulaParaMostrar,
     )
 }

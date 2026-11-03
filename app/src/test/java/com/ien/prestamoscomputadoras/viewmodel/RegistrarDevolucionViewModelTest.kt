@@ -1,6 +1,7 @@
 package com.ien.prestamoscomputadoras.viewmodel
 
 import com.ien.prestamoscomputadoras.data.model.Alumno
+import com.ien.prestamoscomputadoras.data.model.Aula
 import com.ien.prestamoscomputadoras.data.model.Computadora
 import com.ien.prestamoscomputadoras.data.model.NuevoPrestamo
 import com.ien.prestamoscomputadoras.data.model.Prestamo
@@ -40,7 +41,7 @@ class RegistrarDevolucionViewModelTest {
     @Before
     fun setUp() = runTest {
         SesionActual.usuarioId = 3
-        repo.insertar(NuevoPrestamo(idAlumno = 1, idComputadora = 12, idUsuarioPrestamo = 1))
+        repo.insertar(NuevoPrestamo(idAlumno = 1, idComputadora = 12, idUsuarioPrestamo = 1, idAula = 1))
     }
 
     @After
@@ -66,6 +67,24 @@ class RegistrarDevolucionViewModelTest {
     }
 
     @Test
+    fun confirmacion_muestraElAulaDondeEstaElEquipo() {
+        repo.aulas += Aula(idAula = 1, nombre = "Laboratorio")
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-12")
+
+        assertEquals("Laboratorio", vm.uiState.prestamoEncontrado!!.aula)
+    }
+
+    @Test
+    fun confirmacion_prestamoSinAula_dice_SinAula() = runTest {
+        // Préstamo de otra PC cuya aula ya no está en la lista (o es anterior a las aulas).
+        val vm = nuevoVm()
+        vm.onCodigoEscaneado("PC-12")
+
+        assertEquals("Sin aula", vm.uiState.prestamoEncontrado!!.aula)
+    }
+
+    @Test
     fun qrDePrestamoSinObservaciones_noTraeObservacion() {
         val vm = nuevoVm()
         vm.onCodigoEscaneado("PC-12")
@@ -76,7 +95,7 @@ class RegistrarDevolucionViewModelTest {
     fun qrDePrestamoConObservacionAlEntregar_laMuestraCompleta() = runTest {
         repo.insertar(
             NuevoPrestamo(
-                idAlumno = 1, idComputadora = 7, idUsuarioPrestamo = 1,
+                idAlumno = 1, idComputadora = 7, idUsuarioPrestamo = 1, idAula = 1,
                 observacionesIniciales = "Rayón en la tapa y tecla F5 floja.",
             ),
         )
@@ -87,7 +106,7 @@ class RegistrarDevolucionViewModelTest {
 
     @Test
     fun observacionSoloConEspacios_noSeMuestra() = runTest {
-        repo.insertar(NuevoPrestamo(idAlumno = 1, idComputadora = 7, idUsuarioPrestamo = 1, observacionesIniciales = "   "))
+        repo.insertar(NuevoPrestamo(idAlumno = 1, idComputadora = 7, idUsuarioPrestamo = 1, idAula = 1, observacionesIniciales = "   "))
         val vm = nuevoVm()
         vm.onCodigoEscaneado("PC-07")
         assertNull(vm.uiState.prestamoEncontrado!!.observacionesIniciales)
@@ -122,7 +141,7 @@ class RegistrarDevolucionViewModelTest {
     @Test
     fun casoB_yaDevuelta_conFechaYHoraEnArgentina() = runTest {
         // PC-07 tuvo un préstamo que se devolvió el 30/09 a las 10:45 (Argentina).
-        repo.insertar(NuevoPrestamo(idAlumno = 1, idComputadora = 7, idUsuarioPrestamo = 1))
+        repo.insertar(NuevoPrestamo(idAlumno = 1, idComputadora = 7, idUsuarioPrestamo = 1, idAula = 1))
         repo.ahoraServidor = fechaAr(9, 30, 10, 45)
         repo.devolverDirecto(2)
 

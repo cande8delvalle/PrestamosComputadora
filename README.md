@@ -22,6 +22,7 @@ en este orden:
 
 1. `20261012000000_schema_inicial.sql`
 2. `20261012000001_devolucion_trigger.sql`
+3. `20261103000000_aulas.sql` (aulas: tabla `aula`, `prestamo.id_aula` y la vista del historial con el aula)
 
 ### 3. Compilar
 

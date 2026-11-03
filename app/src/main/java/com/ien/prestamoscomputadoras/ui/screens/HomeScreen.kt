@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Laptop
+import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Schedule
@@ -78,6 +79,7 @@ fun HomeScreen(
     onRegistrarDevolucionClick: () -> Unit = {},
     onHistorialClick: () -> Unit = {},
     onRolesPermisosClick: () -> Unit = {},
+    onGestionarAulasClick: () -> Unit = {},
     // TODO: cerrar sesión y volver a Login/Welcome.
     onLogoutClick: () -> Unit = {},
 ) {
@@ -100,6 +102,7 @@ fun HomeScreen(
         onRegistrarDevolucionClick = onRegistrarDevolucionClick,
         onHistorialClick = onHistorialClick,
         onRolesPermisosClick = onRolesPermisosClick,
+        onGestionarAulasClick = onGestionarAulasClick,
         onLogoutClick = onLogoutClick,
         onActividadClick = viewModel::onActividadClick,
         modifier = modifier,
@@ -122,6 +125,7 @@ private fun HomeContent(
     onRegistrarDevolucionClick: () -> Unit,
     onHistorialClick: () -> Unit,
     onRolesPermisosClick: () -> Unit,
+    onGestionarAulasClick: () -> Unit,
     onLogoutClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -215,15 +219,25 @@ private fun HomeContent(
                 }
             }
 
-            // Exclusiva del Admin: Gestión de Permisos nunca se otorga a otro rol.
+            // Exclusivas del Admin: Gestión de Permisos y Gestionar Aulas nunca se otorgan a otro rol.
             if (acceso.esAdmin) {
                 SectionTitle("ADMINISTRACIÓN")
-                QuickActionCard(
-                    icon = Icons.Filled.AdminPanelSettings,
-                    titulo = "Roles y Permisos",
-                    subtitulo = "Definir qué puede hacer cada rol",
-                    onClick = onRolesPermisosClick,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    QuickActionCard(
+                        icon = Icons.Filled.AdminPanelSettings,
+                        titulo = "Roles y Permisos",
+                        subtitulo = "Definir qué puede hacer cada rol",
+                        onClick = onRolesPermisosClick,
+                    )
+                    if (acceso.puede(Permiso.GESTIONAR_AULAS)) {
+                        QuickActionCard(
+                            icon = Icons.Filled.MeetingRoom,
+                            titulo = "Gestionar Aulas",
+                            subtitulo = "Agregar y eliminar aulas",
+                            onClick = onGestionarAulasClick,
+                        )
+                    }
+                }
             }
 
             SectionTitle("ACTIVIDAD RECIENTE")
@@ -326,6 +340,7 @@ private fun HomeScreenPreview() {
             onRegistrarDevolucionClick = {},
             onHistorialClick = {},
             onRolesPermisosClick = {},
+            onGestionarAulasClick = {},
             onLogoutClick = {},
         )
     }
