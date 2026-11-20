@@ -36,6 +36,11 @@ enum class Permiso(
         titulo = "Registrar Alumnos",
         descripcion = "Dar de alta un alumno nuevo en el sistema.",
     ),
+    GESTIONAR_AULAS(
+        titulo = "Gestionar Aulas",
+        descripcion = "Dar de alta y eliminar aulas.",
+        soloAdmin = true,
+    ),
     GESTION_PERMISOS(
         titulo = "Gestión de Permisos",
         descripcion = "Otorgar permisos a los administrativos.",

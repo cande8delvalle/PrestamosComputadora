@@ -129,6 +129,8 @@ fun DetallePrestamoSheet(
             Divisor()
             FilaDato("Computadora", tarjeta.codigoComputadora)
             Divisor()
+            FilaDato("Aula", tarjeta.nombreAula)
+            Divisor()
             FilaDato("Fecha", tarjeta.fechaPrestamo)
             Divisor()
             FilaHora(EventoHora.ENTREGA, "${tarjeta.horaPrestamo}hs")

@@ -264,6 +264,7 @@ private fun TarjetaPrestamo(
 
             DatoTarjeta("DNI: ${tarjeta.dniAlumno}")
             DatoTarjeta("${tarjeta.codigoComputadora} · ${tarjeta.fechaPrestamo}")
+            DatoTarjeta("Aula: ${tarjeta.nombreAula}")
             // Hora de la última actividad: ↑ entrega si sigue prestada, ↓ devolución si ya volvió.
             HoraConFlecha(
                 hora = tarjeta.horaUltimaActividad,

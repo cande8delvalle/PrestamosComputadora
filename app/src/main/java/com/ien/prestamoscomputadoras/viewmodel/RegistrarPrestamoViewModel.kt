@@ -9,17 +9,21 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.ien.prestamoscomputadoras.data.model.Alumno
+import com.ien.prestamoscomputadoras.data.model.Aula
 import com.ien.prestamoscomputadoras.data.model.Computadora
 import com.ien.prestamoscomputadoras.data.model.NuevoPrestamo
 import com.ien.prestamoscomputadoras.data.remote.ErrorDatos
+import com.ien.prestamoscomputadoras.data.repository.AulaRepository
 import com.ien.prestamoscomputadoras.data.repository.PrestamoRepository
 import com.ien.prestamoscomputadoras.data.repository.RESTRICCION_UN_ACTIVO_POR_COMPUTADORA
+import com.ien.prestamoscomputadoras.data.repository.SupabaseAulaRepository
 import com.ien.prestamoscomputadoras.data.repository.SupabasePrestamoRepository
 import com.ien.prestamoscomputadoras.util.SesionActual
 import kotlinx.coroutines.launch
 
 const val ERROR_SELECCIONAR_ALUMNO = "Debés seleccionar un alumno"
 const val ERROR_SELECCIONAR_COMPUTADORA = "Debés seleccionar una computadora"
+const val ERROR_SELECCIONAR_AULA = "Debés seleccionar un aula"
 const val ERROR_SIN_SESION = "No hay una sesión iniciada. Volvé a iniciar sesión."
 const val ERROR_GUARDAR_PRESTAMO = "No se pudo registrar el préstamo. Intentá de nuevo."
 
@@ -27,13 +31,16 @@ const val ERROR_GUARDAR_PRESTAMO = "No se pudo registrar el préstamo. Intentá 
 data class RegistrarPrestamoUiState(
     val alumnos: List<Alumno> = emptyList(),
     val computadorasDisponibles: List<Computadora> = emptyList(),
+    val aulas: List<Aula> = emptyList(),
     /** `true` hasta que terminan de cargarse las listas (evita mostrar "no hay" antes de tiempo). */
     val cargandoListas: Boolean = true,
     val alumnoSeleccionado: Alumno? = null,
     val computadoraSeleccionada: Computadora? = null,
+    val aulaSeleccionada: Aula? = null,
     val observacionesIniciales: String = "",
     val errorAlumno: String? = null,
     val errorComputadora: String? = null,
+    val errorAula: String? = null,
     /** Error que no es de un campo puntual (sin sesión, fallo al guardar). */
     val errorGeneral: String? = null,
     val isLoading: Boolean = false,
@@ -46,11 +53,16 @@ data class RegistrarPrestamoUiState(
     /** Solo si las listas se cargaron bien: un error de red no es "no hay computadoras". */
     val sinComputadorasDisponibles: Boolean
         get() = !cargandoListas && !errorListas && computadorasDisponibles.isEmpty()
+
+    /** Sin aulas cargadas no se puede registrar (el aula es obligatoria): las carga el Admin. */
+    val sinAulas: Boolean
+        get() = !cargandoListas && !errorListas && aulas.isEmpty()
 }
 
 /** ViewModel de [com.ien.prestamoscomputadoras.ui.screens.RegistrarPrestamoScreen]. */
 class RegistrarPrestamoViewModel(
     private val prestamoRepository: PrestamoRepository,
+    private val aulaRepository: AulaRepository,
 ) : ViewModel() {
 
     var uiState by mutableStateOf(RegistrarPrestamoUiState())
@@ -60,16 +72,18 @@ class RegistrarPrestamoViewModel(
         cargarListas()
     }
 
-    /** Lee alumnos y computadoras libres. También lo usa el botón "Reintentar". */
+    /** Lee alumnos, aulas y computadoras libres. También lo usa el botón "Reintentar". */
     fun cargarListas() {
         uiState = uiState.copy(cargandoListas = true, errorListas = false, errorGeneral = null)
         viewModelScope.launch {
             val alumnos = prestamoRepository.listarAlumnos()
             val computadoras = prestamoRepository.listarComputadorasDisponibles()
-            val error = alumnos.exceptionOrNull() ?: computadoras.exceptionOrNull()
+            val aulas = aulaRepository.listar()
+            val error = alumnos.exceptionOrNull() ?: computadoras.exceptionOrNull() ?: aulas.exceptionOrNull()
             uiState = uiState.copy(
                 alumnos = alumnos.getOrDefault(emptyList()),
                 computadorasDisponibles = computadoras.getOrDefault(emptyList()),
+                aulas = aulas.getOrDefault(emptyList()),
                 cargandoListas = false,
                 errorListas = error != null,
                 errorGeneral = error?.message,
@@ -85,14 +99,18 @@ class RegistrarPrestamoViewModel(
         uiState = uiState.copy(computadoraSeleccionada = computadora, errorComputadora = null)
     }
 
+    fun onAulaSeleccionada(aula: Aula) {
+        uiState = uiState.copy(aulaSeleccionada = aula, errorAula = null)
+    }
+
     fun onObservacionesChange(valor: String) {
         uiState = uiState.copy(observacionesIniciales = valor)
     }
 
     /**
      * Valida y guarda. Reglas:
-     * 1. Sin alumno -> [ERROR_SELECCIONAR_ALUMNO]; sin computadora -> [ERROR_SELECCIONAR_COMPUTADORA].
-     *    Se muestran los dos a la vez si faltan ambos.
+     * 1. Sin alumno -> [ERROR_SELECCIONAR_ALUMNO]; sin computadora -> [ERROR_SELECCIONAR_COMPUTADORA];
+     *    sin aula -> [ERROR_SELECCIONAR_AULA]. Se muestran todos a la vez si faltan varios.
      * 2. Sin usuario en [SesionActual] -> [ERROR_SIN_SESION] (no se puede guardar el FK).
      * 3. Si todo pasa, se inserta el préstamo ACTIVO (la fecha/hora la pone el servidor) y se
      *    muestra el modal de éxito. Si la base avisa que la computadora ya está prestada (otro
@@ -101,13 +119,19 @@ class RegistrarPrestamoViewModel(
      */
     fun onRegistrarClick() {
         val s = uiState
-        if (s.isLoading || s.sinComputadorasDisponibles) return
+        if (s.isLoading || s.sinComputadorasDisponibles || s.sinAulas) return
 
         val errorAlumno = if (s.alumnoSeleccionado == null) ERROR_SELECCIONAR_ALUMNO else null
         val errorComputadora =
             if (s.computadoraSeleccionada == null) ERROR_SELECCIONAR_COMPUTADORA else null
-        if (errorAlumno != null || errorComputadora != null) {
-            uiState = s.copy(errorAlumno = errorAlumno, errorComputadora = errorComputadora, errorGeneral = null)
+        val errorAula = if (s.aulaSeleccionada == null) ERROR_SELECCIONAR_AULA else null
+        if (errorAlumno != null || errorComputadora != null || errorAula != null) {
+            uiState = s.copy(
+                errorAlumno = errorAlumno,
+                errorComputadora = errorComputadora,
+                errorAula = errorAula,
+                errorGeneral = null,
+            )
             return
         }
 
@@ -123,6 +147,7 @@ class RegistrarPrestamoViewModel(
             idAlumno = s.alumnoSeleccionado!!.idAlumno,
             idComputadora = s.computadoraSeleccionada!!.idComputadora,
             idUsuarioPrestamo = usuarioId,
+            idAula = s.aulaSeleccionada!!.idAula,
             observacionesIniciales = s.observacionesIniciales.trim().ifEmpty { null },
         )
 
@@ -168,7 +193,7 @@ class RegistrarPrestamoViewModel(
     companion object {
         /** Crea el ViewModel con su repositorio (Supabase). */
         val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer { RegistrarPrestamoViewModel(SupabasePrestamoRepository()) }
+            initializer { RegistrarPrestamoViewModel(SupabasePrestamoRepository(), SupabaseAulaRepository()) }
         }
     }
 }

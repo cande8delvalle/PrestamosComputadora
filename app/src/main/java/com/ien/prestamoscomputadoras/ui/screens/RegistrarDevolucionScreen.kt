@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Laptop
+import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
@@ -662,6 +663,8 @@ private fun DatosPrestamo(prestamo: PrestamoEncontrado) {
             Spacer(Modifier.height(10.dp))
             DatoConIcono(Icons.Filled.Laptop, prestamo.codigoComputadora)
             Spacer(Modifier.height(4.dp))
+            DatoConIcono(Icons.Filled.MeetingRoom, "Aula: ${prestamo.aula}")
+            Spacer(Modifier.height(4.dp))
             DatoConIcono(Icons.Filled.Schedule, formatearFechaHoraDevolucion(prestamo.fechaPrestamo))
         }
     }
@@ -784,6 +787,7 @@ private fun ConfirmacionDevolucionPreview() {
         codigoComputadora = "PC-12",
         fechaPrestamo = Instant.fromEpochMilliseconds(1_782_320_400_000),
         observacionesIniciales = "Rayón en la tapa y tecla F5 floja.",
+        aula = "Laboratorio",
     )
     PrestamosComputadorasTheme {
         ConfirmacionDevolucion(

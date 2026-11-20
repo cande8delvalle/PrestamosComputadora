@@ -1,6 +1,7 @@
 package com.ien.prestamoscomputadoras.viewmodel
 
 import com.ien.prestamoscomputadoras.data.model.Alumno
+import com.ien.prestamoscomputadoras.data.model.Aula
 import com.ien.prestamoscomputadoras.data.model.Computadora
 import com.ien.prestamoscomputadoras.data.model.NuevoPrestamo
 import com.ien.prestamoscomputadoras.data.model.Prestamo
@@ -26,9 +27,13 @@ class RegistrarPrestamoViewModelTest {
     private val pc07 = Computadora(idComputadora = 7, codigo = "PC-07")
     private val pc12 = Computadora(idComputadora = 12, codigo = "PC-12")
 
-    private val repo = FakePrestamos(computadoras = listOf(pc07, pc12), alumnos = listOf(maria))
+    private val aula1 = Aula(idAula = 1, nombre = "Aula 1")
+    private val lab = Aula(idAula = 2, nombre = "Laboratorio")
 
-    private fun nuevoVm() = RegistrarPrestamoViewModel(repo)
+    private val repo = FakePrestamos(computadoras = listOf(pc07, pc12), alumnos = listOf(maria))
+    private val aulaRepo = FakeAulaRepository(listOf(lab, aula1))
+
+    private fun nuevoVm() = RegistrarPrestamoViewModel(repo, aulaRepo)
 
     @Before
     fun setUp() {
@@ -55,6 +60,7 @@ class RegistrarPrestamoViewModelTest {
         vm.apply {
             onAlumnoSeleccionado(maria)
             onComputadoraSeleccionada(pc07)
+            onAulaSeleccionada(aula1)
             onRegistrarClick()
         }
         assertEquals(fechaAr(9, 30, 15), repo.prestamos.single().fechaPrestamo)
@@ -76,6 +82,7 @@ class RegistrarPrestamoViewModelTest {
         val vm = nuevoVm().apply {
             onAlumnoSeleccionado(maria)
             onComputadoraSeleccionada(pc07)
+            onAulaSeleccionada(aula1)
             onRegistrarClick()
         }
 
@@ -88,6 +95,7 @@ class RegistrarPrestamoViewModelTest {
         val vm = nuevoVm().apply {
             onAlumnoSeleccionado(maria)
             onComputadoraSeleccionada(pc07)
+            onAulaSeleccionada(aula1)
             onObservacionesChange("  Rayón en la tapa  ")
             onRegistrarClick()
         }
@@ -109,6 +117,7 @@ class RegistrarPrestamoViewModelTest {
         nuevoVm().apply {
             onAlumnoSeleccionado(maria)
             onComputadoraSeleccionada(pc07)
+            onAulaSeleccionada(aula1)
             onObservacionesChange("   ")
             onRegistrarClick()
         }
@@ -120,9 +129,10 @@ class RegistrarPrestamoViewModelTest {
         val vm = nuevoVm().apply {
             onAlumnoSeleccionado(maria)
             onComputadoraSeleccionada(pc07)
+            onAulaSeleccionada(aula1)
         }
         // Mientras tanto, otro celular presta la PC-07.
-        repo.insertar(NuevoPrestamo(idAlumno = 1, idComputadora = 7, idUsuarioPrestamo = 9))
+        repo.insertar(NuevoPrestamo(idAlumno = 1, idComputadora = 7, idUsuarioPrestamo = 9, idAula = 1))
 
         vm.onRegistrarClick()
 
@@ -157,6 +167,7 @@ class RegistrarPrestamoViewModelTest {
         val vm = nuevoVm().apply {
             onAlumnoSeleccionado(maria)
             onComputadoraSeleccionada(pc07)
+            onAulaSeleccionada(aula1)
             onObservacionesChange("ok")
             onRegistrarClick()
         }
@@ -172,11 +183,110 @@ class RegistrarPrestamoViewModelTest {
 
     @Test
     fun sinComputadorasDisponibles_noRegistra() {
-        val vm = RegistrarPrestamoViewModel(FakePrestamos(alumnos = listOf(maria)))
+        val vm = RegistrarPrestamoViewModel(FakePrestamos(alumnos = listOf(maria)), aulaRepo)
         assertTrue(vm.uiState.sinComputadorasDisponibles)
         vm.onAlumnoSeleccionado(maria)
         vm.onRegistrarClick()
         assertNull(vm.uiState.errorComputadora)
+    }
+
+    // --- Aula (obligatoria) --------------------------------------------------------------
+
+    @Test
+    fun alIniciar_cargaLasAulasOrdenadasPorNombre() {
+        val s = nuevoVm().uiState
+        assertEquals(listOf(aula1, lab), s.aulas)
+        assertFalse(s.sinAulas)
+    }
+
+    @Test
+    fun sinAula_muestraErrorYNoGuarda() {
+        val vm = nuevoVm().apply {
+            onAlumnoSeleccionado(maria)
+            onComputadoraSeleccionada(pc07)
+            onRegistrarClick()
+        }
+
+        assertEquals("Debés seleccionar un aula", ERROR_SELECCIONAR_AULA)
+        assertEquals(ERROR_SELECCIONAR_AULA, vm.uiState.errorAula)
+        assertNull(vm.uiState.errorAlumno)
+        assertNull(vm.uiState.errorComputadora)
+        assertTrue(repo.prestamos.isEmpty())
+        assertFalse(vm.uiState.mostrarModalExito)
+    }
+
+    @Test
+    fun sinNingunaSeleccion_muestraLosTresErrores() {
+        val vm = nuevoVm()
+        vm.onRegistrarClick()
+
+        assertEquals(ERROR_SELECCIONAR_ALUMNO, vm.uiState.errorAlumno)
+        assertEquals(ERROR_SELECCIONAR_COMPUTADORA, vm.uiState.errorComputadora)
+        assertEquals(ERROR_SELECCIONAR_AULA, vm.uiState.errorAula)
+        assertTrue(repo.prestamos.isEmpty())
+    }
+
+    @Test
+    fun elegirAula_limpiaSuError() {
+        val vm = nuevoVm()
+        vm.onRegistrarClick()
+        vm.onAulaSeleccionada(lab)
+
+        assertNull(vm.uiState.errorAula)
+        assertEquals(lab, vm.uiState.aulaSeleccionada)
+    }
+
+    @Test
+    fun registroValido_mandaElIdDelAulaElegida() {
+        nuevoVm().apply {
+            onAlumnoSeleccionado(maria)
+            onComputadoraSeleccionada(pc07)
+            onAulaSeleccionada(lab)
+            onRegistrarClick()
+        }
+        assertEquals(2L, repo.prestamos.single().idAula)
+    }
+
+    @Test
+    fun sinAulasRegistradas_noRegistraYAvisa() {
+        val vm = RegistrarPrestamoViewModel(repo, FakeAulaRepository())
+        assertTrue(vm.uiState.sinAulas)
+
+        vm.onAlumnoSeleccionado(maria)
+        vm.onComputadoraSeleccionada(pc07)
+        vm.onRegistrarClick()
+
+        assertTrue(repo.prestamos.isEmpty())
+        assertFalse(vm.uiState.mostrarModalExito)
+    }
+
+    @Test
+    fun sinInternetAlCargarAulas_muestraErrorYNoDiceQueNoHayAulas() {
+        aulaRepo.falla = ErrorDatos.SinConexion()
+        val vm = nuevoVm()
+
+        assertEquals(MENSAJE_SIN_CONEXION, vm.uiState.errorGeneral)
+        assertTrue(vm.uiState.errorListas)
+        assertFalse(vm.uiState.sinAulas)
+
+        aulaRepo.falla = null
+        vm.cargarListas()
+        assertNull(vm.uiState.errorGeneral)
+        assertEquals(listOf(aula1, lab), vm.uiState.aulas)
+    }
+
+    @Test
+    fun realizarOtro_limpiaElAulaElegida() {
+        val vm = nuevoVm().apply {
+            onAlumnoSeleccionado(maria)
+            onComputadoraSeleccionada(pc07)
+            onAulaSeleccionada(lab)
+            onRegistrarClick()
+        }
+        vm.onRealizarOtroClick()
+
+        assertNull(vm.uiState.aulaSeleccionada)
+        assertEquals(listOf(aula1, lab), vm.uiState.aulas)
     }
 
     @Test

@@ -12,6 +12,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.ien.prestamoscomputadoras.ui.screens.GestionarAulasScreen
 import com.ien.prestamoscomputadoras.ui.screens.HistorialPrestamosScreen
 import com.ien.prestamoscomputadoras.ui.screens.HomeScreen
 import com.ien.prestamoscomputadoras.ui.screens.LoginScreen
@@ -23,6 +24,7 @@ import com.ien.prestamoscomputadoras.ui.screens.RegistrarPrestamoScreen
 import com.ien.prestamoscomputadoras.ui.screens.RolesPermisosScreen
 import com.ien.prestamoscomputadoras.ui.screens.SplashScreen
 import com.ien.prestamoscomputadoras.ui.screens.WelcomeScreen
+import com.ien.prestamoscomputadoras.viewmodel.GestionarAulasViewModel
 import com.ien.prestamoscomputadoras.viewmodel.HistorialPrestamosViewModel
 import com.ien.prestamoscomputadoras.viewmodel.HomeViewModel
 import com.ien.prestamoscomputadoras.viewmodel.LoginViewModel
@@ -49,6 +51,7 @@ sealed class Screen(val route: String) {
     data object RegistrarComputadora : Screen("registrar_computadora")
     data object HistorialPrestamos : Screen("historial_prestamos")
     data object RolesPermisos : Screen("roles_permisos")
+    data object GestionarAulas : Screen("gestionar_aulas")
 }
 
 /**
@@ -154,6 +157,10 @@ fun AppNavigation() {
                 onRolesPermisosClick = {
                     navController.navigate(Screen.RolesPermisos.route) { launchSingleTop = true }
                 },
+                // Solo el Admin ve este acceso en Home (y la pantalla vuelve a verificarlo).
+                onGestionarAulasClick = {
+                    navController.navigate(Screen.GestionarAulas.route) { launchSingleTop = true }
+                },
                 onLogoutClick = {
                     homeViewModel.cerrarSesion()
                     // Se limpia todo el back stack: después de cerrar sesión no se puede volver a Home.
@@ -220,6 +227,15 @@ fun AppNavigation() {
                 viewModel(factory = RolesPermisosViewModel.Factory)
             RolesPermisosScreen(
                 viewModel = rolesPermisosViewModel,
+                onVolverClick = { navController.volverAHome() },
+            )
+        }
+
+        composable(Screen.GestionarAulas.route) {
+            val gestionarAulasViewModel: GestionarAulasViewModel =
+                viewModel(factory = GestionarAulasViewModel.Factory)
+            GestionarAulasScreen(
+                viewModel = gestionarAulasViewModel,
                 onVolverClick = { navController.volverAHome() },
             )
         }

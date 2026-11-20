@@ -3,6 +3,7 @@ package com.ien.prestamoscomputadoras.data.repository
 import com.ien.prestamoscomputadoras.data.model.NuevoEstadoComputadora
 import com.ien.prestamoscomputadoras.data.model.Prestamo
 import com.ien.prestamoscomputadoras.data.model.PrestamoHistorial
+import com.ien.prestamoscomputadoras.data.model.TEXTO_SIN_AULA
 import com.ien.prestamoscomputadoras.data.remote.ErrorDeNegocio
 import com.ien.prestamoscomputadoras.data.remote.SupabaseProvider
 import com.ien.prestamoscomputadoras.data.remote.GuardiaSesion
@@ -28,6 +29,8 @@ data class PrestamoEncontrado(
      * `null` si no hay o están vacías. Se muestran al recibirla para compararlas.
      */
     val observacionesIniciales: String? = null,
+    /** Aula a la que se llevó el equipo, para saber dónde buscarlo. [TEXTO_SIN_AULA] si no tiene. */
+    val aula: String = TEXTO_SIN_AULA,
 )
 
 /** Qué se encontró al identificar una computadora para devolverla. */
@@ -112,6 +115,7 @@ class SupabaseDevolucionRepository(
                         codigoComputadora = fila.computadoraCodigo,
                         fechaPrestamo = fila.fechaPrestamo,
                         observacionesIniciales = fila.observacionesIniciales?.trim()?.ifEmpty { null },
+                        aula = fila.aulaParaMostrar,
                     ),
                 )
             }

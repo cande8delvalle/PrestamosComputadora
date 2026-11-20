@@ -320,6 +320,18 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun acceso_gestionarAulas_soloElAdmin() {
+        val permisos = FakePermisosRepository(
+            rolesPorUsuario = mapOf(1L to Rol.ID_ADMIN, 2L to Rol.ID_PERSONAL),
+            // Aunque alguien lo hubiera escrito a mano en rol_permiso, Personal no lo recibe.
+            permisosIniciales = setOf(RolPermiso(Rol.ID_PERSONAL, Permiso.GESTIONAR_AULAS.name)),
+        )
+
+        assertTrue(nuevoVm(permisos = permisos, idUsuario = 1L).uiState.value.acceso.puede(Permiso.GESTIONAR_AULAS))
+        assertFalse(nuevoVm(permisos = permisos, idUsuario = 2L).uiState.value.acceso.puede(Permiso.GESTIONAR_AULAS))
+    }
+
+    @Test
     fun acceso_sinSesion_noPuedeNada() {
         val s = nuevoVm().uiState.value
         assertFalse(s.acceso.esAdmin)

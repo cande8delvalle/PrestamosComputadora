@@ -17,6 +17,9 @@ import kotlinx.serialization.Serializable
  * "Nuevo..." aparte, solo con las columnas que completa la app.
  */
 
+/** Lo que se muestra cuando un préstamo no tiene aula (los anteriores a las aulas). */
+const val TEXTO_SIN_AULA = "Sin aula"
+
 /** Tabla `rol`. Hay dos filas fijas: [ID_ADMIN] y [ID_PERSONAL]. */
 @Serializable
 data class Rol(
@@ -83,6 +86,17 @@ data class Computadora(
     val modelo: String? = null,
 )
 
+/** Tabla `aula`. */
+@Serializable
+data class Aula(
+    @SerialName("id_aula") val idAula: Long,
+    val nombre: String,
+)
+
+/** Lo que se manda al insertar un aula (sin id: lo genera la base). */
+@Serializable
+data class NuevaAula(val nombre: String)
+
 /** Tabla `prestamo`. */
 @Serializable
 data class Prestamo(
@@ -100,6 +114,8 @@ data class Prestamo(
     /** [ESTADO_ACTIVO] o [ESTADO_DEVUELTO]. */
     val estado: String,
     @SerialName("observaciones_iniciales") val observacionesIniciales: String? = null,
+    /** Aula a la que se llevó el equipo. `null` en los préstamos anteriores a las aulas. */
+    @SerialName("id_aula") val idAula: Long? = null,
 ) {
     companion object {
         const val ESTADO_ACTIVO = "ACTIVO"
@@ -117,6 +133,7 @@ data class NuevoPrestamo(
     @SerialName("id_computadora") val idComputadora: Long,
     /** id_perfil del usuario logueado (la base verifica que sea él mismo). */
     @SerialName("id_usuario_prestamo") val idUsuarioPrestamo: Long,
+    @SerialName("id_aula") val idAula: Long,
     @SerialName("observaciones_iniciales") val observacionesIniciales: String? = null,
     val estado: String = Prestamo.ESTADO_ACTIVO,
 )
@@ -175,7 +192,13 @@ data class PrestamoHistorial(
     @SerialName("pantalla_ok") val pantallaOk: Boolean? = null,
     val cargador: Boolean? = null,
     @SerialName("observaciones_devolucion") val observacionesDevolucion: String? = null,
-)
+    /** `null` en los préstamos anteriores a las aulas. */
+    @SerialName("aula_nombre") val aulaNombre: String? = null,
+) {
+    /** El aula lista para mostrar: [TEXTO_SIN_AULA] si el préstamo no tiene. */
+    val aulaParaMostrar: String
+        get() = aulaNombre?.trim()?.ifEmpty { null } ?: TEXTO_SIN_AULA
+}
 
 /** Resultado de la función `resumen_hoy()` (tarjetas de Home). */
 @Serializable

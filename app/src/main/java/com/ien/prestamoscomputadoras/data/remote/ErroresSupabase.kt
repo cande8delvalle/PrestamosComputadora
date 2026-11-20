@@ -34,8 +34,21 @@ sealed class ErrorDatos(mensaje: String, causa: Throwable? = null) : Exception(m
     class SinPermiso(causa: Throwable? = null) : ErrorDatos(MENSAJE_SIN_PERMISO, causa)
 
     /** Se violó una restricción única. [restriccion] es su nombre en el esquema, si se conoce. */
-    class Duplicado(val restriccion: String?, causa: Throwable? = null) :
-        ErrorDatos("Ese dato ya está registrado.", causa)
+    class Duplicado(
+        val restriccion: String?,
+        causa: Throwable? = null,
+        mensaje: String = "Ese dato ya está registrado.",
+    ) : ErrorDatos(mensaje, causa)
+
+    /**
+     * Se violó una clave foránea (23503): p. ej. borrar algo a lo que todavía hacen referencia
+     * otros registros. [restriccion] es su nombre en el esquema, si se conoce.
+     */
+    class ReferenciaEnUso(
+        val restriccion: String?,
+        causa: Throwable? = null,
+        mensaje: String = "No se puede eliminar: está en uso.",
+    ) : ErrorDatos(mensaje, causa)
 
     /** Email o contraseña incorrectos. */
     class CredencialesInvalidas(causa: Throwable? = null) :
@@ -70,7 +83,7 @@ private val NOMBRE_RESTRICCION = Regex("constraint \"([^\"]+)\"")
 
 /**
  * Traduce cualquier excepción de supabase-kt / Ktor a un [ErrorDatos].
- * Los códigos (42501, 23505) son los códigos estándar de error de PostgreSQL.
+ * Los códigos (42501, 23505, 23503) son los códigos estándar de error de PostgreSQL.
  */
 fun traducirError(e: Throwable): ErrorDatos = when (e) {
     is ErrorDatos -> e
@@ -83,6 +96,7 @@ fun traducirError(e: Throwable): ErrorDatos = when (e) {
         // es la sesión. Con 403 la sesión es válida pero el rol no puede (RLS): es permiso.
         "42501" -> if (e.statusCode == 401) ErrorDatos.SesionVencida(e) else ErrorDatos.SinPermiso(e)
         "23505" -> ErrorDatos.Duplicado(NOMBRE_RESTRICCION.find(e.error)?.groupValues?.get(1), e)
+        "23503" -> ErrorDatos.ReferenciaEnUso(NOMBRE_RESTRICCION.find(e.error)?.groupValues?.get(1), e)
         "PGRST301", "PGRST303" -> ErrorDatos.SesionVencida(e) // JWT inválido o vencido
         else -> ErrorDatos.Otro(e)
     }
