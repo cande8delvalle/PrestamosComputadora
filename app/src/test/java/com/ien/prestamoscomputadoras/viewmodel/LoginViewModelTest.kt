@@ -113,6 +113,21 @@ class LoginViewModelTest {
     }
 
     @Test
+    fun cuentaSinConfirmar_pideConfirmarElCorreo_enVezDelErrorGenerico() {
+        repo.falla = ErrorDatos.EmailSinConfirmar()
+        val (vm, exitoso) = login("admin@ien.edu.ar", "secreta1")
+        assertFalse(exitoso)
+        assertEquals("Revisá tu correo y confirmá tu cuenta antes de ingresar", vm.uiState.error)
+    }
+
+    @Test
+    fun trasCambiarLaContrasena_elLoginAvisaUnaSolaVez() {
+        SesionActual.avisarContrasenaActualizada()
+        assertEquals("Contraseña actualizada. Ya podés iniciar sesión.", LoginViewModel(repo).uiState.aviso)
+        assertNull(LoginViewModel(repo).uiState.aviso)
+    }
+
+    @Test
     fun cerrarSesion_limpiaElPerfilYAvisaASupabase() {
         login("admin@ien.edu.ar", "secreta1")
         HomeViewModel(FakeHomeRepository(), FakePermisosRepository(), idUsuario = 1L, usuarioRepository = repo)

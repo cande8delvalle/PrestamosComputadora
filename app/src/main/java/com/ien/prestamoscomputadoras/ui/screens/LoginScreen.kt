@@ -67,6 +67,7 @@ fun LoginScreen(
     modifier: Modifier = Modifier,
     viewModel: LoginViewModel = viewModel(factory = LoginViewModel.Factory),
     onCrearCuentaClick: () -> Unit = {},
+    onOlvideContrasenaClick: () -> Unit = {},
     /** Se invoca cuando el login pasa la validación (navega a Home). */
     onLoginExitoso: () -> Unit = {},
 ) {
@@ -88,6 +89,7 @@ fun LoginScreen(
             }
         },
         onCrearCuentaClick = onCrearCuentaClick,
+        onOlvideContrasenaClick = onOlvideContrasenaClick,
         modifier = modifier,
     )
 }
@@ -101,6 +103,7 @@ private fun LoginContent(
     onLoginClick: () -> Unit,
     onCrearCuentaClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onOlvideContrasenaClick: () -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -190,12 +193,32 @@ private fun LoginContent(
                 fondo = FondoCampo.BLANCO,
             )
 
+            Text(
+                text = "¿Olvidaste tu contraseña?",
+                color = IenPurple,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .clickable(onClick = onOlvideContrasenaClick)
+                    .padding(top = 10.dp, bottom = 4.dp),
+            )
+
             if (uiState.error != null) {
                 Spacer(Modifier.height(8.dp))
                 Text(
                     text = uiState.error,
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            if (uiState.aviso != null && uiState.error == null) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = uiState.aviso,
+                    color = IenPurple,
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
 

@@ -19,6 +19,10 @@ const val MENSAJE_SESION_VENCIDA = "Tu sesión venció. Volvé a ingresar."
 /** Para cargas automáticas (Home, listas): nunca dice "Solo el Admin puede". */
 const val MENSAJE_ERROR_CARGA = "No se pudieron cargar los datos. Intentá de nuevo."
 const val MENSAJE_ERROR_INESPERADO = "Ocurrió un error inesperado. Intentá de nuevo."
+const val MENSAJE_EMAIL_SIN_CONFIRMAR = "Revisá tu correo y confirmá tu cuenta antes de ingresar"
+const val MENSAJE_CODIGO_INVALIDO = "El código es incorrecto o venció. Revisalo o pedí uno nuevo."
+const val MENSAJE_DEMASIADOS_INTENTOS = "Demasiados intentos. Esperá unos minutos antes de volver a intentar."
+const val MENSAJE_CONTRASENA_IGUAL_ANTERIOR = "La nueva contraseña no puede ser igual a la anterior."
 
 /**
  * Errores de la capa de datos, ya traducidos a un mensaje que se puede mostrar tal cual.
@@ -59,11 +63,21 @@ sealed class ErrorDatos(mensaje: String, causa: Throwable? = null) : Exception(m
 
     /** Al registrarse: Supabase pide una contraseña más larga/fuerte. */
     class ContrasenaDebil(causa: Throwable? = null) :
-        ErrorDatos("La contraseña es muy débil. Usá al menos 6 caracteres.", causa)
+        ErrorDatos("La contraseña es muy débil. Elegí una más larga o más difícil de adivinar.", causa)
 
     /** La cuenta existe pero todavía no se confirmó el email (si el proyecto lo exige). */
     class EmailSinConfirmar(causa: Throwable? = null) :
-        ErrorDatos("Tenés que confirmar tu correo antes de iniciar sesión. Revisá tu bandeja de entrada.", causa)
+        ErrorDatos(MENSAJE_EMAIL_SIN_CONFIRMAR, causa)
+
+    /** Recuperación de contraseña: el código de 6 dígitos es incorrecto o ya venció. */
+    class CodigoInvalido(causa: Throwable? = null) : ErrorDatos(MENSAJE_CODIGO_INVALIDO, causa)
+
+    /** Se pidieron demasiados códigos o hubo demasiados intentos (límite de Supabase). */
+    class DemasiadosIntentos(causa: Throwable? = null) : ErrorDatos(MENSAJE_DEMASIADOS_INTENTOS, causa)
+
+    /** Al cambiar la contraseña: la nueva es igual a la actual. */
+    class ContrasenaIgualAnterior(causa: Throwable? = null) :
+        ErrorDatos(MENSAJE_CONTRASENA_IGUAL_ANTERIOR, causa)
 
     /** No hay sesión o se venció (token inválido). */
     class SesionVencida(causa: Throwable? = null) : ErrorDatos(MENSAJE_SESION_VENCIDA, causa)
@@ -100,18 +114,42 @@ fun traducirError(e: Throwable): ErrorDatos = when (e) {
         "PGRST301", "PGRST303" -> ErrorDatos.SesionVencida(e) // JWT inválido o vencido
         else -> ErrorDatos.Otro(e)
     }
-    is AuthRestException -> when (e.errorCode) {
-        AuthErrorCode.InvalidCredentials -> ErrorDatos.CredencialesInvalidas(e)
-        AuthErrorCode.UserAlreadyExists, AuthErrorCode.EmailExists -> ErrorDatos.EmailEnUso(e)
-        AuthErrorCode.WeakPassword -> ErrorDatos.ContrasenaDebil(e)
-        AuthErrorCode.EmailNotConfirmed -> ErrorDatos.EmailSinConfirmar(e)
-        AuthErrorCode.SessionNotFound, AuthErrorCode.SessionExpired,
-        AuthErrorCode.RefreshTokenNotFound, AuthErrorCode.BadJwt,
-        -> ErrorDatos.SesionVencida(e)
-        else -> ErrorDatos.Otro(e)
-    }
+    is AuthRestException -> traducirErrorAuth(e.errorCode, e.statusCode, e.error, e)
     is RestException -> if (e.statusCode == 401) ErrorDatos.SesionVencida(e) else ErrorDatos.Otro(e)
     else -> ErrorDatos.Otro(e)
+}
+
+/**
+ * Traduce un error de Supabase Auth (login, registro, recuperación de contraseña). Separada de
+ * [traducirError] para poder probarla sin armar una respuesta HTTP.
+ *
+ * @param codigo el `error_code` que manda Supabase (`null` si no es uno conocido)
+ * @param estado el código HTTP
+ * @param error el texto crudo del error (se usa como respaldo si falta el código)
+ */
+internal fun traducirErrorAuth(
+    codigo: AuthErrorCode?,
+    estado: Int,
+    error: String,
+    causa: Throwable? = null,
+): ErrorDatos = when (codigo) {
+    AuthErrorCode.InvalidCredentials -> ErrorDatos.CredencialesInvalidas(causa)
+    AuthErrorCode.UserAlreadyExists, AuthErrorCode.EmailExists -> ErrorDatos.EmailEnUso(causa)
+    AuthErrorCode.WeakPassword -> ErrorDatos.ContrasenaDebil(causa)
+    AuthErrorCode.SamePassword -> ErrorDatos.ContrasenaIgualAnterior(causa)
+    AuthErrorCode.OtpExpired -> ErrorDatos.CodigoInvalido(causa)
+    AuthErrorCode.OverEmailSendRateLimit, AuthErrorCode.OverRequestRateLimit ->
+        ErrorDatos.DemasiadosIntentos(causa)
+    AuthErrorCode.EmailNotConfirmed -> ErrorDatos.EmailSinConfirmar(causa)
+    AuthErrorCode.SessionNotFound, AuthErrorCode.SessionExpired,
+    AuthErrorCode.RefreshTokenNotFound, AuthErrorCode.BadJwt,
+    -> ErrorDatos.SesionVencida(causa)
+    // Respaldo si Supabase no manda un código conocido: se reconoce por el estado HTTP o el texto.
+    else -> when {
+        estado == 429 -> ErrorDatos.DemasiadosIntentos(causa)
+        error.contains("Email not confirmed", ignoreCase = true) -> ErrorDatos.EmailSinConfirmar(causa)
+        else -> ErrorDatos.Otro(causa)
+    }
 }
 
 /**

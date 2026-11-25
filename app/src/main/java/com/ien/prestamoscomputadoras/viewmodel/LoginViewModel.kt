@@ -32,6 +32,8 @@ data class LoginUiState(
     val mostrarContrasena: Boolean = false,
     /** Mensaje de error a mostrar bajo el formulario. `null` = sin error. */
     val error: String? = null,
+    /** Mensaje informativo (no es un error), p. ej. "Contraseña actualizada". */
+    val aviso: String? = null,
     /** `true` mientras se verifica la cuenta (evita logins duplicados). */
     val isLoading: Boolean = false,
 )
@@ -51,7 +53,10 @@ class LoginViewModel(
      * "Tu sesión venció. Volvé a ingresar." en lugar de mostrar el login vacío sin explicación.
      */
     var uiState by mutableStateOf(
-        LoginUiState(error = if (SesionActual.consumirAvisoSesionVencida()) MENSAJE_SESION_VENCIDA else null),
+        LoginUiState(
+            error = if (SesionActual.consumirAvisoSesionVencida()) MENSAJE_SESION_VENCIDA else null,
+            aviso = if (SesionActual.consumirAvisoContrasenaActualizada()) MENSAJE_CONTRASENA_ACTUALIZADA else null,
+        ),
     )
         private set
 
@@ -90,7 +95,7 @@ class LoginViewModel(
             return
         }
 
-        uiState = uiState.copy(isLoading = true)
+        uiState = uiState.copy(isLoading = true, aviso = null)
         viewModelScope.launch {
             usuarioRepository.iniciarSesion(email.lowercase(), contrasena)
                 .onSuccess { perfil ->

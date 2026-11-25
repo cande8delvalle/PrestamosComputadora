@@ -8,14 +8,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
+import com.ien.prestamoscomputadoras.ui.screens.EncontrarCuentaScreen
 import com.ien.prestamoscomputadoras.ui.screens.GestionarAulasScreen
 import com.ien.prestamoscomputadoras.ui.screens.HistorialPrestamosScreen
 import com.ien.prestamoscomputadoras.ui.screens.HomeScreen
+import com.ien.prestamoscomputadoras.ui.screens.IngresarCodigoScreen
 import com.ien.prestamoscomputadoras.ui.screens.LoginScreen
+import com.ien.prestamoscomputadoras.ui.screens.NuevaContrasenaScreen
 import com.ien.prestamoscomputadoras.ui.screens.RegisterScreen
 import com.ien.prestamoscomputadoras.ui.screens.RegistrarAlumnoScreen
 import com.ien.prestamoscomputadoras.ui.screens.RegistrarComputadoraScreen
@@ -28,6 +33,7 @@ import com.ien.prestamoscomputadoras.viewmodel.GestionarAulasViewModel
 import com.ien.prestamoscomputadoras.viewmodel.HistorialPrestamosViewModel
 import com.ien.prestamoscomputadoras.viewmodel.HomeViewModel
 import com.ien.prestamoscomputadoras.viewmodel.LoginViewModel
+import com.ien.prestamoscomputadoras.viewmodel.RecuperarContrasenaViewModel
 import com.ien.prestamoscomputadoras.viewmodel.RegisterViewModel
 import com.ien.prestamoscomputadoras.viewmodel.RegistrarAlumnoViewModel
 import com.ien.prestamoscomputadoras.viewmodel.RegistrarComputadoraViewModel
@@ -44,6 +50,12 @@ sealed class Screen(val route: String) {
     data object Welcome : Screen("welcome")
     data object Login : Screen("login")
     data object Register : Screen("register")
+
+    // "Olvidé mi contraseña": 3 pantallas dentro de un grafo anidado que comparten el ViewModel.
+    data object Recuperar : Screen("recuperar_contrasena")
+    data object RecuperarCorreo : Screen("recuperar_contrasena/correo")
+    data object RecuperarCodigo : Screen("recuperar_contrasena/codigo")
+    data object RecuperarNueva : Screen("recuperar_contrasena/nueva")
     data object Home : Screen("home")
     data object RegistrarAlumno : Screen("registrar_alumno")
     data object NuevoPrestamo : Screen("nuevo_prestamo")
@@ -71,7 +83,10 @@ fun AppNavigation() {
     val sesionVencida by SesionActual.sesionVencida.collectAsState()
     LaunchedEffect(sesionVencida) {
         if (!sesionVencida) return@LaunchedEffect
-        val rutasSinSesion = setOf(Screen.Splash.route, Screen.Welcome.route, Screen.Login.route, Screen.Register.route)
+        val rutasSinSesion = setOf(
+            Screen.Splash.route, Screen.Welcome.route, Screen.Login.route, Screen.Register.route,
+            Screen.RecuperarCorreo.route, Screen.RecuperarCodigo.route, Screen.RecuperarNueva.route,
+        )
         if (navController.currentDestination?.route in rutasSinSesion) {
             SesionActual.consumirAvisoSesionVencida()
             return@LaunchedEffect
@@ -114,6 +129,9 @@ fun AppNavigation() {
             LoginScreen(
                 viewModel = loginViewModel,
                 onCrearCuentaClick = { navController.navigate(Screen.Register.route) },
+                onOlvideContrasenaClick = {
+                    navController.navigate(Screen.Recuperar.route) { launchSingleTop = true }
+                },
                 onLoginExitoso = {
                     // Se vacía toda la pila (Welcome incluida): "atrás" desde Home cierra la
                     // app en vez de volver al login.
@@ -122,6 +140,44 @@ fun AppNavigation() {
                     }
                 },
             )
+        }
+
+        // Recuperar contraseña. Verificar el código abre una sesión en Supabase, pero la app NO
+        // la observa para navegar: a Home solo se entra desde el login (o el Splash al reabrir).
+        // Al terminar, el ViewModel ya cerró esa sesión y se vuelve al login con el aviso.
+        navigation(startDestination = Screen.RecuperarCorreo.route, route = Screen.Recuperar.route) {
+            composable(Screen.RecuperarCorreo.route) { entry ->
+                val vm = recuperarViewModel(navController, entry)
+                EncontrarCuentaScreen(
+                    viewModel = vm,
+                    onCodigoEnviado = {
+                        navController.navigate(Screen.RecuperarCodigo.route) { launchSingleTop = true }
+                    },
+                    onVolverClick = { navController.popBackStack() },
+                )
+            }
+            composable(Screen.RecuperarCodigo.route) { entry ->
+                val vm = recuperarViewModel(navController, entry)
+                IngresarCodigoScreen(
+                    viewModel = vm,
+                    onCodigoVerificado = {
+                        navController.navigate(Screen.RecuperarNueva.route) {
+                            // El código ya se usó: no se vuelve a esa pantalla.
+                            popUpTo(Screen.RecuperarCodigo.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                    onVolverClick = { navController.popBackStack() },
+                )
+            }
+            composable(Screen.RecuperarNueva.route) { entry ->
+                val vm = recuperarViewModel(navController, entry)
+                NuevaContrasenaScreen(
+                    viewModel = vm,
+                    onTerminado = { navController.volverALoginDesdeRecuperar() },
+                    onCancelar = { navController.volverALoginDesdeRecuperar() },
+                )
+            }
         }
 
         composable(Screen.Register.route) {
@@ -259,5 +315,25 @@ private fun NavHostController.irALoginDesdeRegister() {
     navigate(Screen.Login.route) {
         popUpTo(Screen.Register.route) { inclusive = true }
         launchSingleTop = true
+    }
+}
+
+/** ViewModel compartido por las 3 pantallas: vive mientras el grafo de recuperación esté en la pila. */
+@Composable
+private fun recuperarViewModel(
+    navController: NavHostController,
+    entry: NavBackStackEntry,
+): RecuperarContrasenaViewModel {
+    val padre = remember(entry) { navController.getBackStackEntry(Screen.Recuperar.route) }
+    return viewModel(padre, factory = RecuperarContrasenaViewModel.Factory)
+}
+
+/**
+ * Vuelve al Login sacando de la pila el flujo de recuperación Y el Login anterior: se crea un
+ * Login nuevo, que así lee el aviso "Contraseña actualizada" (lo lee al crearse).
+ */
+private fun NavHostController.volverALoginDesdeRecuperar() {
+    navigate(Screen.Login.route) {
+        popUpTo(Screen.Login.route) { inclusive = true }
     }
 }

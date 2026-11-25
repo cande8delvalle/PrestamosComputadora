@@ -45,4 +45,18 @@ object SesionActual {
         _sesionVencida.value = false
         return habia
     }
+
+    private val _contrasenaActualizada = MutableStateFlow(false)
+
+    /** Se activa al terminar "Olvidé mi contraseña" para que el login lo informe una vez. */
+    fun avisarContrasenaActualizada() {
+        _contrasenaActualizada.value = true
+    }
+
+    /** Devuelve si había un aviso de contraseña actualizada pendiente y lo borra. */
+    fun consumirAvisoContrasenaActualizada(): Boolean {
+        val habia = _contrasenaActualizada.value
+        _contrasenaActualizada.value = false
+        return habia
+    }
 }

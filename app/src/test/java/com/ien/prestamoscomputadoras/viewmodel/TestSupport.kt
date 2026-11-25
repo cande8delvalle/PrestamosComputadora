@@ -30,6 +30,7 @@ import com.ien.prestamoscomputadoras.data.repository.PrestamoEncontrado
 import com.ien.prestamoscomputadoras.data.repository.PrestamoRepository
 import com.ien.prestamoscomputadoras.data.repository.PrestamoYaDevueltoException
 import com.ien.prestamoscomputadoras.data.repository.RESTRICCION_NOMBRE_USUARIO
+import com.ien.prestamoscomputadoras.data.repository.RecuperacionContrasenaRepository
 import com.ien.prestamoscomputadoras.data.repository.RESTRICCION_UN_ACTIVO_POR_COMPUTADORA
 import com.ien.prestamoscomputadoras.data.repository.UsuarioRepository
 import com.ien.prestamoscomputadoras.util.ZONA_ARGENTINA
@@ -456,4 +457,42 @@ class FakePermisosRepository(
             .mapNotNull { Permiso.desdeNombre(it.permiso) }
             .filterNot { it.soloAdmin }
             .toSet()
+}
+
+/** Imita la recuperación de contraseña de Supabase Auth (código de 6 dígitos por mail). */
+class FakeRecuperacionRepository(val codigoCorrecto: String = "123456") : RecuperacionContrasenaRepository {
+    /** Si no es `null`, las llamadas fallan con este error. */
+    var falla: ErrorDatos? = null
+    val correosPedidos = mutableListOf<String>()
+    var verificaciones = 0
+    var contrasenaCambiada: String? = null
+    var sesionAbierta = false
+    var sesionesDescartadas = 0
+
+    override suspend fun solicitarCodigo(email: String): Result<Unit> {
+        falla?.let { return Result.failure(it) }
+        correosPedidos += email
+        return Result.success(Unit)
+    }
+
+    override suspend fun verificarCodigo(email: String, codigo: String): Result<Unit> {
+        verificaciones++
+        falla?.let { return Result.failure(it) }
+        if (codigo != codigoCorrecto) return Result.failure(ErrorDatos.CodigoInvalido())
+        sesionAbierta = true
+        return Result.success(Unit)
+    }
+
+    override suspend fun cambiarContrasena(nueva: String): Result<Unit> {
+        falla?.let { return Result.failure(it) }
+        contrasenaCambiada = nueva
+        sesionAbierta = false
+        return Result.success(Unit)
+    }
+
+    override suspend fun descartarSesion(): Result<Unit> {
+        sesionesDescartadas++
+        sesionAbierta = false
+        return Result.success(Unit)
+    }
 }
