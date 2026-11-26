@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ien.prestamoscomputadoras.BuildConfig
 import com.ien.prestamoscomputadoras.R
 import com.ien.prestamoscomputadoras.ui.components.ienAnimatedGradientBackground
 import com.ien.prestamoscomputadoras.ui.theme.IenPurple
@@ -150,7 +151,7 @@ fun WelcomeScreen(
         Spacer(Modifier.height(28.dp))
 
         Text(
-            text = "Versión 1.0  ·  IEN 2026",
+            text = "Versión ${BuildConfig.VERSION_NAME}  ·  IEN 2026",
             color = Color.White.copy(alpha = 0.7f),
             fontSize = 11.sp,
             textAlign = TextAlign.Center,

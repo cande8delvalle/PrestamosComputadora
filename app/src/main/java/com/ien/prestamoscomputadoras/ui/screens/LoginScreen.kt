@@ -44,6 +44,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ien.prestamoscomputadoras.BuildConfig
 import com.ien.prestamoscomputadoras.ui.components.CampoTexto
 import com.ien.prestamoscomputadoras.ui.components.FondoCampo
 import com.ien.prestamoscomputadoras.ui.components.AppHeader
@@ -291,7 +292,7 @@ private fun CrearCuentaRow(onCrearCuentaClick: () -> Unit) {
 @Composable
 private fun LoginFooter() {
     Text(
-        text = "Versión 1.0  ·  IEN 2026",
+        text = "Versión ${BuildConfig.VERSION_NAME}  ·  IEN 2026",
         color = IenGreyText,
         fontSize = 11.sp,
         textAlign = TextAlign.Center,

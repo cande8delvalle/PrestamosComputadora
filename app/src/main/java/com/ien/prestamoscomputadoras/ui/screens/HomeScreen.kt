@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ien.prestamoscomputadoras.BuildConfig
 import com.ien.prestamoscomputadoras.data.Permiso
 import com.ien.prestamoscomputadoras.ui.components.DetallePrestamoSheet
 import com.ien.prestamoscomputadoras.ui.components.MensajeError
@@ -266,7 +267,7 @@ private fun HomeContent(
             // Versión: último ítem del contenido que se desplaza (no fijo al pie), así no tapa
             // nada y solo se ve al llegar al final.
             Text(
-                text = "Versión 1.0 · IEN 2026",
+                text = "Versión ${BuildConfig.VERSION_NAME} · IEN 2026",
                 color = IenGreyText,
                 fontSize = 12.sp,
                 textAlign = TextAlign.Center,
